@@ -1,25 +1,3 @@
-# Working together on GitHub
-
-Six people work on one repository. These rules keep `main` working and make sure every change has been looked at by someone who did not write it. That second reviewer is our main defence against unvalidated GenAI code.
-
-## One-time setup (team leader)
-
-1. Create an **empty private** repository on GitHub, for example `rse2203-warehouse`, without a README or .gitignore.
-2. In this folder:
-   ```bash
-   git init -b main            # skip if the folder already has a .git folder
-   git add .
-   git commit -m "Initial version"
-   git remote add origin https://github.com/<you>/rse2203-warehouse.git
-   git push -u origin main
-   ```
-3. **Settings → Collaborators**: invite the five other members.
-4. Edit `.github/CODEOWNERS` and replace the `@wp-…-owner` placeholders with real GitHub usernames.
-5. **Settings → Branches → Add rule** for `main`:
-   - "Require a pull request before merging" with 1 approval;
-   - "Require review from Code Owners";
-   - "Require status checks to pass", then select the CI jobs (`linux`, `windows`, `sanitizers`).
-
 ## Everyday workflow (everyone)
 
 ```bash
