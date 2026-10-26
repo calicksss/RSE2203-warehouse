@@ -4,7 +4,12 @@
 
 ## Work package
 
-- [ ] WP-A ds   - [ ] WP-B shop   - [ ] WP-C navigation   - [ ] WP-D picking   - [ ] WP-E fulfilment   - [ ] WP-F integration
+- [ ] WP-A ds
+- [ ] - [ ] WP-B shop
+- [ ]  - [ ] WP-C navigation
+- [ ]  - [ ] WP-D picking
+- [ ]   - [ ] WP-E fulfilment
+- [ ]    - [ ] WP-F integration
 
 ## Was GenAI used for this change?
 
