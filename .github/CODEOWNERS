@@ -1,0 +1,22 @@
+# Who must review changes to each folder (GitHub asks them automatically on every pull request).
+#
+# 1. Replace each @placeholder with that member's GitHub username, e.g. @calix-papa.
+# 2. In GitHub: Settings -> Branches -> add a rule for "main" -> tick
+#    "Require a pull request before merging" and "Require review from Code Owners".
+#
+# A later line wins over an earlier one for the same file.
+
+*                         @wp-f-integration-owner
+
+/modules/ds/              @wp-a-owner
+/modules/shop/            @wp-b-owner
+/modules/navigation/      @wp-c-owner
+/modules/picking/         @wp-d-owner
+/modules/fulfilment/      @wp-e-owner
+/modules/core/            @wp-f-integration-owner @wp-a-owner @wp-b-owner @wp-c-owner @wp-d-owner @wp-e-owner
+/modules/sim/             @wp-f-integration-owner
+/modules/ui/              @wp-f-integration-owner
+/app/                     @wp-f-integration-owner
+/experiments/             @wp-f-integration-owner
+/data/                    @wp-b-owner @wp-c-owner
+/docs/GENAI_LOG.md        @wp-f-integration-owner

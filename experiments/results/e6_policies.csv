@@ -1,0 +1,61 @@
+routing,assignment,seed,makespan,lead_time,moves,waits
+As given,First available,1,933,490.9,5799,232
+As given,First available,2,892,463.8,5792,231
+As given,First available,3,915,488.4,5735,211
+As given,First available,4,874,450.3,5471,139
+As given,First available,5,939,489.1,5776,166
+As given,First available,6,929,472.1,5892,244
+As given,First available,7,873,477.8,5622,213
+As given,First available,8,864,431.2,5358,183
+As given,First available,9,915,468.6,5510,209
+As given,First available,10,868,439.6,5732,200
+Greedy NN,First available,1,795,401.0,4738,177
+Greedy NN,First available,2,705,365.6,4368,129
+Greedy NN,First available,3,757,408.2,4660,178
+Greedy NN,First available,4,780,394.2,4912,181
+Greedy NN,First available,5,776,399.6,4692,173
+Greedy NN,First available,6,777,392.6,4710,190
+Greedy NN,First available,7,704,378.4,4342,169
+Greedy NN,First available,8,778,391.9,4790,180
+Greedy NN,First available,9,733,383.9,4460,161
+Greedy NN,First available,10,770,383.7,4716,210
+Backtracking,First available,1,650,346.3,4084,153
+Backtracking,First available,2,663,340.1,4017,176
+Backtracking,First available,3,694,377.1,4300,136
+Backtracking,First available,4,689,362.3,4170,188
+Backtracking,First available,5,722,367.6,4336,138
+Backtracking,First available,6,703,361.5,4475,146
+Backtracking,First available,7,704,361.7,4204,189
+Backtracking,First available,8,644,336.6,4130,174
+Backtracking,First available,9,747,373.9,4474,169
+Backtracking,First available,10,709,347.3,4214,201
+As given,Nearest,1,902,462.9,5462,212
+As given,Nearest,2,924,465.6,5539,172
+As given,Nearest,3,875,465.3,5454,187
+As given,Nearest,4,911,474.0,5565,225
+As given,Nearest,5,943,483.8,5830,210
+As given,Nearest,6,910,469.2,5770,205
+As given,Nearest,7,835,451.0,5248,193
+As given,Nearest,8,869,413.3,5119,146
+As given,Nearest,9,891,467.7,5323,212
+As given,Nearest,10,916,465.4,5868,240
+Greedy NN,Nearest,1,768,381.9,4718,168
+Greedy NN,Nearest,2,713,379.6,4445,172
+Greedy NN,Nearest,3,738,397.9,4582,163
+Greedy NN,Nearest,4,739,385.8,4576,163
+Greedy NN,Nearest,5,726,381.4,4502,172
+Greedy NN,Nearest,6,790,395.8,4850,168
+Greedy NN,Nearest,7,735,388.2,4556,172
+Greedy NN,Nearest,8,750,367.1,4496,189
+Greedy NN,Nearest,9,757,392.7,4646,155
+Greedy NN,Nearest,10,764,378.7,4628,165
+Backtracking,Nearest,1,667,343.2,4172,214
+Backtracking,Nearest,2,662,332.3,3970,200
+Backtracking,Nearest,3,677,350.2,4106,121
+Backtracking,Nearest,4,711,357.1,4310,134
+Backtracking,Nearest,5,730,375.8,4442,157
+Backtracking,Nearest,6,701,345.9,4366,140
+Backtracking,Nearest,7,667,339.8,3999,127
+Backtracking,Nearest,8,726,354.6,4560,192
+Backtracking,Nearest,9,691,341.0,4100,134
+Backtracking,Nearest,10,698,327.9,4198,118

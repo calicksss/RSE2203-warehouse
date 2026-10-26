@@ -1,0 +1,22 @@
+# Build output - never commit binaries or CMake caches
+build/
+build-*/
+out/
+cmake-build-*/
+*.o
+*.obj
+*.exe
+*.a
+*.lib
+
+# Runtime output
+receipts/
+test_receipts*/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Python
+__pycache__/

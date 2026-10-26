@@ -1,0 +1,45 @@
+# Builds the project and runs every module's tests on Linux and Windows for each push and pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependency rules
+        run: python3 tools/check_dependencies.py
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DWH_WARNINGS_AS_ERRORS=ON
+      - name: Build
+        run: cmake --build build -j 4
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Smoke test (40 orders, no UI)
+        run: ./build/app/Warehouse --headless 40
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (AddressSanitizer + UBSan, no UI)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DWH_SANITIZE=ON -DWH_BUILD_UI=OFF -DWH_BUILD_EXPERIMENTS=OFF
+      - name: Build
+        run: cmake --build build -j 4
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure (Visual Studio)
+        run: cmake -S . -B build
+      - name: Build
+        run: cmake --build build --config Release -j 4
+      - name: Unit tests
+        run: ctest --test-dir build -C Release --output-on-failure
