@@ -69,7 +69,7 @@ python experiments/plot_results.py               # charts -> experiments/results
 
 | WP | Folder(s) | Owner | Data structures and algorithms | Course reference | Experiment |
 |----|-----------|-------|--------------------------------|------------------|------------|
-| **A** | `modules/ds` | _name_ | Linked-list queue, binary min-heap, bubble/selection/insertion/merge/quick sort, binary search | [L2], [L4], [L5a] | E1 sorting |
+| **A** | `modules/ds` | Marissa | Linked-list queue, binary min-heap, bubble/selection/insertion/merge/quick sort, binary search | [L2], [L4], [L5a] | E1 sorting |
 | **B** | `modules/shop` | _name_ | Catalogue with a binary-search name index, cart rules, exact money arithmetic (integer cents), checkout, receipts | [L1b], [L5a] | E2 searching |
 | **C** | `modules/navigation` | _name_ | Grid graph, breadth-first search, A\*, distance cache (memoisation), route planning (greedy and backtracking) | [L5a], [L5b], graph algorithms [S] | E3, E4 |
 | **D** | `modules/picking` | Raelyn | Picking-robot state machine, battery, charging docks, traffic rules (collision and obstacle avoidance) | [L1b], [L4] | E5 fleet size |
