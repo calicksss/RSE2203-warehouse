@@ -1,6 +1,6 @@
 # Architecture
 
-GitHub draws the diagrams below automatically. To edit one, change the text in the `mermaid` block; https://mermaid.live previews it.
+GitHub renders the diagrams in this document automatically. A diagram is edited by changing the text of its `mermaid` block; changes can be previewed at https://mermaid.live. Citation keys refer to the *References* section of the root `README.md`.
 
 ## 1. Modules and the dependency rule
 
@@ -27,12 +27,12 @@ graph TD
     shop --> core
 ```
 
-An arrow means "uses". The arrows never form a loop, so each module can be built and tested with only the modules below it. `ds` uses nothing at all. This is why WP-A can test its queue on plain `int`s without a warehouse.
+An arrow denotes "uses". The dependency graph is acyclic, so each module can be built and tested using only the modules beneath it. The `ds` module has no dependencies at all, which allows WP-A to test its containers on plain `int` values without any warehouse code.
 
-How the loops are avoided:
+Circular dependencies are avoided as follows:
 
-- **Robots → JobManager:** robots report progress through the abstract class `FulfilmentListener` in `core/Robot.hpp`, and `JobManager` implements it. A robot never includes `JobManager.hpp`.
-- **PickingRobot → SortingRobot:** a picker only knows the drop-off *cell* and the sorter's *number*. On delivery it calls `listener.onUnitsDelivered(sorterIndex, items)`, and the JobManager passes the items to the right sorter.
+- **Robots and the job manager:** robots report progress through the abstract class `FulfilmentListener` in `core/Robot.hpp`, which `JobManager` implements. No robot class includes `JobManager.hpp`.
+- **Picking robots and sorting robots:** a picking robot knows only the drop-off *cell* and the *index* of its sorter. On delivery it calls `listener.onUnitsDelivered(sorterIndex, items)`, and the job manager passes the items to the corresponding sorter.
 
 ## 2. Main classes
 
@@ -102,9 +102,9 @@ classDiagram
     SortingRobot ..> FulfilmentListener : reports to
 ```
 
-**Ownership:** `Simulation` owns every robot through `std::unique_ptr`, so robots are deleted automatically and never move in memory. Everyone else holds plain pointers (`PickingRobot*`), which means "I use it but do not own it". `fleet_` holds all robots as `Robot*`, so one loop can call `robot->tick()` on both kinds (polymorphism, Lecture 1b).
+**Ownership.** `Simulation` owns every robot through `std::unique_ptr`, so robots are released automatically and never move in memory. All other classes hold non-owning raw pointers (`PickingRobot*`), meaning that they use the object without owning it. `fleet_` stores every robot as a `Robot*`, so that a single loop can call `robot->tick()` on both robot types through dynamic dispatch, an application of polymorphism as introduced in Lecture 1b [L1b].
 
-## 3. One tick
+## 3. Sequence of one simulation tick
 
 ```mermaid
 sequenceDiagram
@@ -130,7 +130,7 @@ sequenceDiagram
     S->>S: checkInvariants(): no shared cells, no swaps, no walls
 ```
 
-## 4. Life of an order
+## 4. Order life cycle
 
 ```mermaid
 stateDiagram-v2
@@ -142,7 +142,7 @@ stateDiagram-v2
     Completed --> [*]
 ```
 
-## 5. Picking robot states
+## 5. Picking-robot state machine
 
 ```mermaid
 stateDiagram-v2
@@ -166,11 +166,11 @@ stateDiagram-v2
     Charging --> Returning: charged, no trip
 ```
 
-## 6. Threads (UI only)
+## 6. Threads (interface only)
 
-The model (`sim` and everything below it) is single-threaded. It never sleeps and never prints. The UI runs FTXUI on the main thread. A small clock thread wakes every 50 ms and posts a job to the UI thread with `App::Post`. That job calls `Simulation::step()` as many times as the chosen speed needs. Only one thread ever touches the model, so no locks are needed.
+The model (`sim` and all modules beneath it) is single-threaded; it neither sleeps nor produces output. The interface runs FTXUI on the main thread. A clock thread wakes every 50 ms and posts a task to the interface thread with `App::Post`; that task calls `Simulation::step()` as many times as the selected speed requires. Because only one thread ever accesses the model, no locks are required.
 
 ## 7. Data files
 
-- `data/Map.txt`: one character per cell: `W` wall, `.` floor, `S` shelf, `C` charging dock, `R` sorting robot, `T` picker home. Spaces are ignored. `GridMap::parse` reports the line number of any error and checks with BFS that every shelf, sorter, dock and home can be reached.
-- `data/Products.txt`: `Name Price WeightKg Stock ShelfRow ShelfCol [Category]`. `ShelfRegistry` checks that every product sits on an `S` cell and that there are exactly as many products as shelves (91).
+- `data/Map.txt`: one character per cell (`W` wall, `.` floor, `S` shelf, `C` charging dock, `R` sorting robot, `T` picking-robot home); spaces are ignored. `GridMap::parse` reports the line number of any error and uses breadth-first search to verify that every shelf, sorter, dock and home is reachable.
+- `data/Products.txt`: `Name Price WeightKg Stock ShelfRow ShelfCol [Category]`. `ShelfRegistry` verifies that every product is located on an `S` cell and that the number of products equals the number of shelves (91).

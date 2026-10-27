@@ -1,8 +1,8 @@
-# GenAI usage and evaluation log
+# Generative AI usage and evaluation log
 
-The brief requires **at least two GenAI tools** to help generate basic source code, and an evaluation of their responses on **Accuracy, Completeness, Clarity and Relevance**. Record every substantial use here. This file is the raw material for the report's GenAI section.
+The project brief [B] requires the use of at least two generative AI tools to assist in generating basic source code, and an evaluation of their responses against four criteria: **accuracy, completeness, clarity and relevance**. Every substantial use of such a tool is recorded in this log, which forms the basis of the generative AI section of the report.
 
-How to fill it in: one entry per question or task. Keep the prompt short (or link to a shared chat). Scores use the rubric in `VALIDATION_GUIDE.md`, and **each score needs evidence**: a test name, a line number or a counter-example.
+**Recording procedure.** One entry is made per question or task. The prompt is summarised briefly or linked. Scores follow the rubric in `VALIDATION_GUIDE.md`, and **each score must be supported by evidence** such as a test name, a line number or a counter-example. Citation keys refer to the *References* section of the root `README.md`.
 
 ---
 
@@ -11,60 +11,60 @@ How to fill it in: one entry per question or task. Keep the prompt short (or lin
 ```
 ### G<number>: <short title>
 - Date / member / work package:
-- Tool + version:            (e.g. ChatGPT GPT-5, GitHub Copilot, Claude, Gemini)
+- Tool and version:          (e.g. ChatGPT, GitHub Copilot, Claude, Gemini)
 - Prompt (summary or link):
-- What it produced:
-- What we checked:           (tests run, hand trace, compared with tool X, mutation test)
-- Problems found:
-- What we changed:
+- Output produced:
+- Verification performed:    (tests run, hand trace, comparison with another tool, mutation test)
+- Problems identified:
+- Changes made:
 - Scores:  Accuracy _/5 · Completeness _/5 · Clarity _/5 · Relevance _/5
 - Evidence for the scores:
 ```
 
 ---
 
-## G1: First version of the whole code base (baseline, needs scoring by the team)
+## G1: Initial version of the code base (baseline; to be scored by the team)
 
-- **Date / member / WP:** 26 Oct 2026 / team leader / all
-- **Tool:** Claude (Anthropic), used as an agent that wrote and ran code.
-- **Prompt (summary):** "Use the current iteration of the warehouse program and cater it to our RSE2203 course level (lecture slides 1a–5b and the team project brief attached). Teammates must be able to understand, validate and modify it. Split it into separate parts for six members on GitHub."
-- **What it produced:**
-  - 8 modules with tests (74 test cases in 6 test programs);
-  - an experiments program and a chart script;
+- **Date / member / work package:** 26 October 2026 / team leader / all
+- **Tool:** Claude (Anthropic), used as an agent that wrote and executed code.
+- **Prompt (summary):** "Use the current iteration of the warehouse program and cater it to our course level. Teammates must be able to understand, validate and modify it. Split it into separate parts for six members on GitHub."
+- **Output produced:**
+  - eight modules with tests (74 test cases in six test programs);
+  - an experiments program and a plotting script;
   - documentation;
-  - the GitHub set-up.
-- **What the tool reported about its own checks:**
-  - builds with warnings as errors;
+  - the GitHub configuration (continuous integration, code owners, templates).
+- **Verification reported by the tool:**
+  - the code compiles with warnings treated as errors;
   - all module tests pass;
-  - a 360-run stress test finished every order with 0 collisions;
-  - A\* path lengths match BFS;
-  - backtracking routes match a brute-force search;
-  - 20 planted bugs were all detected or explained.
+  - a stress test of 360 simulation runs completed every order with no collisions;
+  - A\* path lengths match breadth-first search;
+  - backtracking routes match an exhaustive search;
+  - all 20 planted defects were either detected or explained as equivalent.
 
-  **These are the tool's claims. Re-run them yourselves** (`ctest`, `tools/mutation_test.py`, `experiments`) before you rely on them.
-- **Known limitations it stated itself:** see `DESIGN_DECISIONS.md` §3 (the traffic rules are a heuristic with no proof that every jam ends; the route planner ignores other robots; etc.).
-- **What we checked:** _(each owner adds their module's steps 1–7 here)_
-- **Problems found:** _(fill in)_
-- **What we changed:** _(fill in)_
+  **These are claims made by the tool itself.** They are to be reproduced by the team (`ctest`, `tools/mutation_test.py`, `experiments`) before being relied upon.
+- **Limitations stated by the tool:** see `DESIGN_DECISIONS.md` §3. In particular, the traffic rules are a heuristic with no proof that every congestion situation resolves, and the route planner does not account for other robots.
+- **Verification performed by the team:** _(each owner records the outcome of steps 1–7 for their module)_
+- **Problems identified:** _(to be completed)_
+- **Changes made:** _(to be completed)_
 - **Scores:** Accuracy _/5 · Completeness _/5 · Clarity _/5 · Relevance _/5
-- **Evidence:** _(fill in)_
+- **Evidence:** _(to be completed)_
 
-## G2: Second tool, cross-check of _(function)_ (example: WP-A, merge sort)
+## G2: Cross-check with a second tool, _(function)_ (example: WP-A, merge sort)
 
-- **Tool:** _(e.g. ChatGPT)_
+- **Tool:** _(for example ChatGPT)_
 - **Prompt:** "Write a stable merge sort for std::vector in C++17 with a comparator, and state its time and space complexity."
-- **Comparison with `modules/ds/Sorting.hpp`:** _(same algorithm? ties handled the same way, i.e. stable? complexity claims?)_
-- **Test used as evidence:** `Sorting: merge, insertion and bubble sort are stable` (+ mutation "merge takes from the RIGHT half on ties")
-- **Scores (tool 2):** Accuracy _/5 · Completeness _/5 · Clarity _/5 · Relevance _/5
-- **Scores (Claude, same question):** Accuracy _/5 · Completeness _/5 · Clarity _/5 · Relevance _/5
+- **Comparison with `modules/ds/Sorting.hpp`:** _(Is the algorithm the same? Are ties handled in the same way, i.e. is it stable [L4]? Are the complexity claims correct?)_
+- **Test used as evidence:** `Sorting: merge, insertion and bubble sort are stable`, together with the mutant "merge takes from the RIGHT half on ties".
+- **Scores (second tool):** Accuracy _/5 · Completeness _/5 · Clarity _/5 · Relevance _/5
+- **Scores (Claude, same prompt):** Accuracy _/5 · Completeness _/5 · Clarity _/5 · Relevance _/5
 
-_(Add G3, G4, … for each member. Aim for at least one entry per member, with at least two different tools across the team.)_
+_(Entries G3, G4, … are added for each member. At least one entry per member is expected, and at least two different tools must be used across the team [B].)_
 
 ---
 
 ## Summary table (for the report)
 
-| Entry | Member | Tool | Task | Acc | Comp | Clar | Rel | Main finding |
-|-------|--------|------|------|----:|-----:|-----:|----:|--------------|
-| G1 | | Claude | Whole code base | | | | | |
+| Entry | Member | Tool | Task | Acc. | Comp. | Clar. | Rel. | Principal finding |
+|-------|--------|------|------|-----:|------:|------:|-----:|-------------------|
+| G1 | | Claude | Complete code base | | | | | |
 | G2 | | | | | | | | |

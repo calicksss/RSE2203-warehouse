@@ -1,29 +1,29 @@
-# sim: the simulation loop (WP-F)
+# sim: simulation loop (WP-F)
 
 **Owner:** integrator (WP-F) · **Depends on:** all model modules · **Used by:** ui, app, experiments
 
-`Simulation` builds the warehouse from the two data files and advances it one tick at a time. It owns every robot (`std::unique_ptr`), gives the other classes plain pointers, and checks the safety rules after every tick.
+`Simulation` constructs the warehouse from the two data files and advances it one tick at a time. It owns every robot through `std::unique_ptr`, provides the other classes with non-owning pointers, and verifies the safety properties after every tick. Citation keys refer to the *References* section of the root `README.md`.
 
 ```
 step():  obstacles.update → jobs.update → traffic.step → robot->tick() for every robot → checkInvariants
 ```
 
-`checkInvariants` counts a **collision** if two pickers share a cell, if a picker is on a wall, shelf or obstacle, or if two pickers swapped cells. The count must stay 0, and every system test checks it.
+`checkInvariants` records a **collision** if two picking robots occupy the same cell, if a robot stands on a wall, shelf or obstacle, or if two robots exchange cells within one tick. The count must remain zero, and every system test checks this.
 
 ## Tests (`tests/test_sim.cpp`)
 
-| Test | What it proves |
-|------|----------------|
-| 80 orders + heavy obstacles | Everything completes, 0 collisions, detours actually happen |
-| every picker works | Robots work in parallel (all 8 busy at some point) |
-| express faster on average | The priority rule has a visible effect |
-| fast battery drain | Charging and resuming trips works under stress |
-| same seed, same run | Experiments are reproducible |
-| stress (48 runs) | All routing methods, 1–8 robots and obstacles: always finishes, 0 collisions |
-| too-heavy product | Bad data is rejected at start-up |
+| Test | Property established |
+|------|----------------------|
+| 80 orders with frequent obstacles | All orders complete with no collisions, and detours do occur |
+| every picker works | Robots operate in parallel (all eight are busy at some point) |
+| express faster on average | The priority rule has a measurable effect |
+| fast battery drain | Charging and the resumption of suspended trips work under stress |
+| same seed, same run | Runs are reproducible, as the experiments require |
+| stress test (48 runs) | Every routing method, one to eight robots and obstacles: all runs complete without collisions |
+| over-weight product | Invalid data is rejected at start-up |
 
-## Validate it
+## Validation
 
-- "Who tests the tester?" If `checkInvariants` were broken, the system tests would still report 0 collisions. Which *other* tests would still catch a collision bug? (Hint: `test_picking` checks positions itself. Try the mutant "robots drive into occupied cells" with `checkInvariants` emptied.)
-- Change the order inside `step()`, for example robots tick *before* traffic moves them. Which tests fail, and is the new order actually wrong or just different?
-- The stress test finishes in under a second. Is 48 runs enough evidence? How many runs did `docs/DESIGN_DECISIONS.md` cite, and how would you run more? (Change the loops; do not commit a 5-minute test.)
+- **Verification of the verifier.** If `checkInvariants` were defective, the system tests would still report zero collisions. Which other tests would still detect a collision defect? (`test_picking` checks robot positions independently; try the mutant "robots drive into occupied cells" with `checkInvariants` disabled.)
+- Change the order of operations in `step()`, for example by letting robots tick before the traffic controller moves them. Which tests fail, and is the new order incorrect or merely different?
+- The stress test runs in under one second. Are 48 runs sufficient evidence? `docs/DESIGN_DECISIONS.md` cites 360 runs; how would more be performed without adding a slow test to the repository?

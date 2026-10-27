@@ -4,12 +4,12 @@
 
 ## Work package
 
-- [ ] WP-A ds
-- [ ] WP-B shop
-- [ ] WP-C navigation
-- [ ] WP-D picking
-- [ ] WP-E fulfilment
-- [ ] WP-F integration
+- [ ] WP-A `ds`: data structures, sorting, search
+- [ ] WP-B `shop`: catalogue, cart, checkout
+- [ ] WP-C `navigation`: map, BFS, A*, route planning
+- [ ] WP-D `picking`: picking robots, traffic
+- [ ] WP-E `fulfilment`: job manager, sorting station
+- [ ] WP-F integration: `core`, `sim`, `ui`, `app`, `experiments`, CI
 
 ## Was GenAI used for this change?
 
@@ -23,7 +23,7 @@
 - [ ] I added or updated a test that would FAIL if my change were wrong.
 - [ ] I tried at least one "break it on purpose" change (see my module's README) and a test caught it.
 - [ ] Complexity (Big-O) in the comments/README is still correct.
-- [ ] I checked for over-engineering: is there a simpler way that meets the brief?
+- [ ] I checked for over-engineering: there is no simpler design that meets the project brief and our problem statements.
 - [ ] `python tools/check_dependencies.py` passes (my module only includes modules it may use).
 
 ## Reviewer (from a DIFFERENT work package)

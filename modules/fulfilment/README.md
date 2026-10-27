@@ -2,91 +2,91 @@
 
 **Owner:** _name_ · **Depends on:** core, ds, shop, navigation, picking · **Used by:** sim, ui
 
-The "brain" that decides who does what, and the sorting robots that turn mixed deliveries back into packed orders.
+This module contains the job manager, which decides which robot performs which task, and the sorting robots, which separate mixed deliveries back into individual packed orders. Citation keys refer to the *References* section of the root `README.md`.
 
-| File | What | Data structure / algorithm | Big-O |
-|------|------|----------------------------|-------|
-| `JobManager.hpp/.cpp` | Order backlog, release to sorters, batteries, trip building, robot choice, progress tracking | backlog: **`ds::MinHeap`** (priority queue); records: `std::map` (BST); **greedy** least-loaded sorter, **greedy first-fit** trip filling, **greedy nearest** robot; calls `RoutePlanner` | release O(log n) per order; dispatch O(pool + R·k) per trip + route planning |
-| `SortingRobot.hpp/.cpp` | Put-wall sorter: conveyor, bins, packing | conveyor: **`ds::LinkedQueue`**; bins: small `vector` with linear search; packing: **`ds::mergeSort`** (stable, heaviest first) | O(1) per sorted item; O(b) bin lookup; O(m log m) packing |
-| `ShelfRegistry.hpp/.cpp` | Product ↔ shelf lookups, checked against the map | two arrays | O(1) |
+| File | Content | Data structure / algorithm | Complexity |
+|------|---------|----------------------------|------------|
+| `JobManager.hpp/.cpp` | Order backlog, release of orders to sorters, battery management, trip formation, robot selection, progress tracking | Backlog: **`ds::MinHeap`** (priority queue); records: `std::map` (balanced binary search tree); **greedy** least-loaded sorter, **greedy first-fit** trip filling and **greedy nearest** robot [L5b]; calls `RoutePlanner` | release O(log n) per order; dispatch O(pool + R·k) per trip, plus route planning |
+| `SortingRobot.hpp/.cpp` | Put-wall sorter: conveyor, bins and packing | Conveyor: **`ds::LinkedQueue`** [L2]; bins: small `vector` searched linearly; packing: **`ds::mergeSort`** (stable, heaviest first) [L4] | O(1) per sorted item; O(b) bin lookup; O(m log m) packing |
+| `ShelfRegistry.hpp/.cpp` | Product-to-shelf and shelf-to-product lookup, validated against the map | two arrays | O(1) |
 
-## How it works (short)
+## How it works
 
-1. **Backlog (priority queue).** `key = submit tick − (express ? 120 : 0)`; the heap always returns the smallest key. An express order overtakes standard orders that arrived up to 120 ticks earlier, but never older ones, so there is **no starvation** (there is a test for each).
-2. **Release (greedy load balancing).** The top order goes to the sorter with a free bin and the fewest open orders (ties: fewest waiting items). This is the Lecture 5b "least-loaded processor" idea. Its items become `PickUnit`s in that sorter's pool, kept in urgency order.
-3. **Batteries.** A robot on a trip that is close to not reaching any dock goes to charge now (the trip pauses). An idle robot below 30% charges. The nearest *free* dock is chosen and reserved.
+1. **Backlog (priority queue).** Each order is keyed by `submit tick − (express ? 120 : 0)`, and the heap always returns the smallest key. An express order therefore overtakes standard orders that arrived up to 120 ticks earlier, but never older ones, so **no order can be postponed indefinitely**. A test covers each of these properties.
+2. **Release to a sorter (greedy load balancing).** The order at the top of the heap is assigned to the sorter that has a free bin and the fewest open orders (ties are broken by the fewest waiting items). This is a greedy assignment rule of the kind illustrated by the processor-scheduling example in Lecture 5b [L5b]. The order's items become `PickUnit`s in that sorter's pool, kept in order of urgency.
+3. **Battery management.** A robot on a trip that is close to being unable to reach a dock is sent to charge immediately, and its trip is suspended. An idle robot below 30% charge is sent to charge. In both cases the nearest *free* dock is selected and reserved.
 4. **Dispatch.**
-   - Take the pool with the most urgent first item.
-   - Fill a trip greedily (first-fit: up to 8 items and 12 kg, in urgency order).
+   - Select the pool whose first item is the most urgent.
+   - Fill a trip greedily in order of urgency (first-fit, up to eight items and 12 kg).
    - Group the items by shelf.
-   - Choose the nearest idle robot.
-   - Order the shelves with the RoutePlanner.
-   - Check the battery covers the trip plus the way to a dock (a fully charged robot may always start).
-5. **Sorting.** Each tick the arm takes the front item of the conveyor and puts it in its order's bin. A full bin is packed for 4 ticks; then `onOrderPacked` reports the packing list, heaviest first.
+   - Select the nearest idle robot.
+   - Order the shelves with the `RoutePlanner`.
+   - Confirm that the battery covers the trip and the subsequent journey to a dock. A fully charged robot may always start.
+5. **Sorting.** In each tick the sorting arm takes the item at the front of the conveyor and places it in the bin of its order. A complete bin is packed for four ticks, after which `onOrderPacked` reports the packing list, heaviest item first.
 
-## Build and test only this module
+## Building and testing this module only
 
 ```bash
 cmake --build build --target test_fulfilment
 ctest --test-dir build -R fulfilment --output-on-failure
 ```
 
-## Validate it
+## Validation
 
-### Hand-trace 1: who is released first?
+### Hand trace 1: order of release
 
-`expressHeadStart = 120`. Orders: #1 standard at t=0, #2 standard at t=5, #3 express at t=10, #4 express at t=200, #5 standard at t=150. Suppose all five are still waiting in the backlog at t=200, and one bin frees up at a time. Compute each heap key and the release order.
+With `expressHeadStart = 120`, the orders are: #1 standard at t = 0, #2 standard at t = 5, #3 express at t = 10, #4 express at t = 200 and #5 standard at t = 150. Assume that all five are still in the backlog at t = 200 and that bins become free one at a time. Compute each heap key and the order of release.
 <details><summary>Answer</summary>
 
-Keys: #1 = 0, #2 = 5, #3 = −110, #4 = 80, #5 = 150. The release order is **#3, #1, #2, #4, #5**. Express #4 does *not* overtake #1 or #2: they had already waited more than 120 ticks longer.
+Keys: #1 = 0, #2 = 5, #3 = −110, #4 = 80, #5 = 150. The order of release is **#3, #1, #2, #4, #5**. Express order #4 does *not* overtake #1 or #2, because they had already waited more than 120 ticks longer.
 </details>
 
-### Hand-trace 2: first-fit trip filling
+### Hand trace 2: first-fit trip filling
 
-The pool, in urgency order: 7 × rice (2.0 kg), apple (0.2 kg), milk (1.0 kg). Capacity is 8 items and 12 kg. Which items go on the first trip?
+The pool contains, in order of urgency, seven bags of rice (2.0 kg each), one apple (0.2 kg) and one carton of milk (1.0 kg). The capacity is eight items and 12 kg. Which items are placed on the first trip?
 <details><summary>Answer</summary>
 
-6 rice = 12.0 kg. The 7th rice (14 kg), the apple (12.2 kg) and the milk (13 kg) do not fit. So 6 items go on the trip and 3 stay in the pool.
+Six bags of rice (12.0 kg). The seventh bag of rice (14 kg in total), the apple (12.2 kg) and the milk (13 kg) would each exceed the weight limit. Six items are therefore dispatched and three remain in the pool.
 </details>
 
-### Hand-trace 3: packing order
+### Hand trace 3: packing order
 
-The bin receives, in this order: product 10 (1.0 kg), 20 (0.1 kg), 11 (1.0 kg), 30 (2.5 kg), 12 (1.0 kg). Write the packing list. Why must the three 1.0 kg items stay in the order 10, 11, 12? (Test "packing list is heaviest first …".)
+A bin receives, in this order, product 10 (1.0 kg), 20 (0.1 kg), 11 (1.0 kg), 30 (2.5 kg) and 12 (1.0 kg). Write the packing list, and explain why the three 1.0 kg items must remain in the order 10, 11, 12 (test "packing list is heaviest first …"; stability [L4]).
 
-### Break it on purpose
+### Mutation testing
 
-`python tools/mutation_test.py fulfilment` plants four bugs:
-- the heap serves the least urgent order;
-- one item too many per trip;
-- always the first sorter;
-- packing with quick sort (not stable).
+`python tools/mutation_test.py fulfilment` introduces four defects:
+- the heap serves the least urgent order first;
+- one item too many is placed on a trip;
+- orders are always released to the first sorter;
+- packing uses quick sort, which is not stable.
 
-All four are caught. Add your own, for example "the battery check ignores the way back to a dock". Which test fails? If none does, write one: low drain plus long trips.
+All four are detected. Each owner adds further mutants, for example "the battery check ignores the journey back to a dock". If no test fails, one is to be written (low drain combined with long trips).
 
-### Questions you should be able to answer
+### Review questions
 
-- Why a heap and not a sorted list for the backlog? What are push and pop in each?
-- Why is the express rule "a fixed head start" free of starvation? What rule *would* starve standard orders?
-- Greedy first-fit is not optimal packing (bin packing is NP-hard). Give a pool where a different choice would fill the trip better.
-- Why does a picker report `onUnitsDelivered(sorterIndex, …)` instead of calling the sorter directly? (See `docs/ARCHITECTURE.md`, avoiding a dependency loop.)
-- What does "a fully charged robot may always start" prevent? (Hint: a trip longer than one battery.)
+- Why is a heap used for the backlog rather than a sorted list? What are the costs of insertion and removal in each case?
+- Why does a fixed head start for express orders prevent indefinite postponement? Which alternative rule *would* cause standard orders to starve?
+- Greedy first-fit does not produce optimal packing (the bin-packing problem is NP-hard). Give a pool for which a different selection would fill the trip better [L5b].
+- Why does a picking robot report `onUnitsDelivered(sorterIndex, …)` instead of calling the sorter directly? (See `docs/ARCHITECTURE.md` on avoiding circular dependencies.)
+- What problem does the rule "a fully charged robot may always start" prevent? (Consider a trip longer than one battery charge.)
 
-### Is this over-engineered?
+### Review for over-engineering
 
-- `JobManager` is the largest class. Would splitting it into `Backlog`, `Dispatcher` and `ChargingManager` make it easier to test, or just add files?
-- Is the per-sorter pool needed? Could all items wait in one list?
-- Is `ShelfRegistry` needed, given `Product` already stores its shelf position?
+- `JobManager` is the largest class. Would dividing it into `Backlog`, `Dispatcher` and `ChargingManager` make it easier to test, or merely add files?
+- Is a separate pool per sorter necessary, or could all items wait in a single list?
+- Is `ShelfRegistry` necessary, given that `Product` already stores its shelf position?
 
-### Cross-check with a second GenAI tool
+### Cross-check with a second generative AI tool
 
-Prompt idea: *"Design a priority rule for an order queue where express orders go first but standard orders must not starve. Give the data structure and complexity."* Does the other tool suggest aging, a fixed offset, or two queues? Compare with ours and argue which is simplest.
+Suggested prompt: *"Design a priority rule for an order queue where express orders go first but standard orders must not starve. Give the data structure and complexity."* Does the response propose ageing, a fixed offset or two separate queues? Compare it with the present design and assess which is simplest.
 
-## Modify it (starter tasks)
+## Suggested modifications
 
-1. **Deadline scheduling:** give express orders a deadline (submit + 200) and release by earliest deadline first. Compare lead times in E6.
-2. **Opportunistic charging:** idle robots below 60% charge when there is no work. Does it reduce long trips later?
-3. **Bin sizing:** make `sorterBins` 2, 4 or 8 and measure the effect on lead time (add a section to E6).
+1. **Deadline scheduling.** Give express orders a deadline (submission time + 200) and release orders by earliest deadline first; compare lead times in E6.
+2. **Opportunistic charging.** Send idle robots below 60% to charge when no work is waiting, and assess whether this reduces interrupted trips later.
+3. **Number of bins.** Set `sorterBins` to 2, 4 or 8 and measure the effect on lead time (as an additional part of E6).
 
-## Experiment you own
+## Experiment owned by this work package
 
-- **E6** `experiments policies`: routing (as-given, greedy, backtracking) × robot choice (first, nearest) over 10 seeds. Makespan, lead time and distance. Discuss which decision matters most and why: routing saves about 25% of the distance, robot choice at most about 3%.
+- **E6** `experiments policies`: routing method (as given, greedy, backtracking) combined with robot selection (first available, nearest) over ten seeds, measuring completion time, lead time and distance travelled. The discussion should identify which decision has the greatest effect and why: routing reduces the distance by about 25%, whereas robot selection reduces it by at most about 3%.
