@@ -74,7 +74,7 @@ python experiments/plot_results.py               # charts -> experiments/results
 | **C** | `modules/navigation` | liyou | Grid graph, breadth-first search, A\*, distance cache (memoisation), route planning (greedy and backtracking) | [L5a], [L5b], graph algorithms [S] | E3, E4 |
 | **D** | `modules/picking` | Raelyn | Picking-robot state machine, battery, charging docks, traffic rules (collision and obstacle avoidance) | [L1b], [L4] | E5 fleet size |
 | **E** | `modules/fulfilment` | Sam | Job manager (priority-queue backlog, greedy sorter, robot and trip selection, charging); sorting robot with put-wall bins and stable packing | [L2], [L4], [L5b] | E6 policies |
-| **F** | `modules/core`, `sim`, `ui`, `app`, `experiments`, CI | _name_ (integrator) | Simulation loop, polymorphic robot collection, safety checks, FTXUI interface, experiments program | [L1b] | all |
+| **F** | `modules/core`, `sim`, `ui`, `app`, `experiments`, CI | Calix | Simulation loop, polymorphic robot collection, safety checks, FTXUI interface, experiments program | [L1b] | all |
 
 Each module folder contains its own `README.md` (purpose, testing and validation), `CMakeLists.txt` and `tests/` directory. The Git workflow is described in `CONTRIBUTING.md`.
 
