@@ -23,19 +23,19 @@ using namespace wh;
 
 namespace {
 
-/** Generate a vector containing random integers, (no. of int, largest possible int, control random no. sequence) **/
+/** Generate a vector of random integers: (how many, largest possible value, seed that fixes the random sequence). **/
 std::vector<int> randomInts(int n, int maxValue, unsigned seed) 
 {
     std::mt19937 rng(seed);                                //std::mt19937 is a Mersenne Twister random number generator. 
-    std::uniform_int_distribution<int> dist(0, maxValue);  //tells generator to produce integers 0 < x < maxValue
+    std::uniform_int_distribution<int> dist(0, maxValue);  //tells generator to produce integers 0 <= x <= maxValue (both ends included)
     std::vector<int> v(n);                                 //create a vector
     for (int& x : v) x = dist(rng);                        //store random numbers inside x
     return v;
 }
 
 /// An item with a key and a label.
-/**key: the vale that we want to sort by
-   label: an identifier that lets us track the original position of identity of an item
+/**key: the value that we want to sort by
+   label: an identifier that lets us track the original position of an item
     **/
 struct Tagged {
     int key;
@@ -113,6 +113,38 @@ TEST_CASE("LinkedQueue: copies are independent (deep copy, rule of three)")
     CHECK((seen == std::vector<int>{1, 2, 3}));
 }
 
+TEST_CASE("LinkedQueue: self-assignment keeps the contents, and an empty queue can be copied")
+{
+    LinkedQueue<int> a;
+    a.enqueue(1);
+    a.enqueue(2);
+    LinkedQueue<int>& same = a;    // alias, so the compiler does not warn about "a = a"
+    a = same;                      // without the `this != &other` guard, clear() would empty the queue first
+    CHECK(a.size() == 2);
+    CHECK(a.dequeue() == 1);
+    CHECK(a.dequeue() == 2);
+
+    LinkedQueue<int> empty;
+    LinkedQueue<int> copy = empty;
+    CHECK(copy.empty());
+    copy.enqueue(3);               // the copy of an empty queue is still usable
+    CHECK(copy.front() == 3);
+}
+
+TEST_CASE("LinkedQueue: clear() empties the queue and it can be reused")
+{
+    LinkedQueue<int> q;
+    for (int i = 0; i < 5; ++i) q.enqueue(i);
+    q.clear();
+    CHECK(q.empty());
+    CHECK(q.size() == 0);
+    CHECK_THROWS(q.front());
+    q.enqueue(42);                 // tail_ was reset, so this must become both head and tail
+    CHECK(q.size() == 1);
+    CHECK(q.dequeue() == 42);
+    CHECK(q.empty());
+}
+
 // ---------------------------------------------------------------------------
 // MinHeap
 // ---------------------------------------------------------------------------
@@ -159,6 +191,28 @@ TEST_CASE("MinHeap: works with a struct that defines operator<")
     CHECK(heap.pop().id == 3);
     CHECK(heap.pop().id == 0);   // tie on priority 5 broken by smaller id
     CHECK(heap.pop().id == 1);
+}
+
+TEST_CASE("MinHeap: size() and clear() work, and the heap is reusable after clear()")
+{
+    MinHeap<int> heap;
+    for (int v : {4, 2, 9}) heap.push(v);
+    CHECK(heap.size() == 3);
+    heap.clear();
+    CHECK(heap.empty());
+    CHECK(heap.size() == 0);
+    CHECK_THROWS(heap.top());
+    heap.push(7);
+    CHECK(heap.top() == 7);
+}
+
+TEST_CASE("MinHeap: lecture hand-trace (5, 3, 8, 1, 4 then pop) matches the README")
+{
+    MinHeap<int> heap;
+    for (int v : {5, 3, 8, 1, 4}) heap.push(v);
+    CHECK((heap.items() == std::vector<int>{1, 3, 8, 5, 4}));
+    CHECK(heap.pop() == 1);
+    CHECK((heap.items() == std::vector<int>{3, 4, 8, 5}));
 }
 
 // ---------------------------------------------------------------------------
@@ -278,6 +332,47 @@ TEST_CASE("Sorting: comparison counts match the best/worst cases from lecture 4"
     v = randomInts(n, 100000, 3);
     mergeSort(v, counting);
     CHECK(compares <= static_cast<long>(n * std::log2(n)));  // never more than n log2 n
+}
+
+TEST_CASE("Sorting: bubble sort does n(n-1)/2 comparisons on reversed input")
+{
+    const int n = 200;
+    std::vector<int> v(n);
+    for (int i = 0; i < n; ++i) v[i] = n - i;
+    long compares = 0;
+    bubbleSort(v, [&compares](int a, int b) { ++compares; return a < b; });
+    CHECK(compares == static_cast<long>(n) * (n - 1) / 2);   // shrinking inner loop: (n-1)+(n-2)+...+1
+}
+
+TEST_CASE("Sorting: quick sort partition of the lecture 4 array puts the pivot at index 5 (README hand-trace)")
+{
+    std::vector<int> a{8, 3, 7, 11, 9, 5, 13, 2, 20, 1};
+    auto less = [](int x, int y) { return x < y; };
+    const int pivotIndex = detail::partition(a, 0, 9, less);
+    CHECK(pivotIndex == 5);
+    CHECK(a[5] == 8);
+    CHECK((a == std::vector<int>{2, 3, 7, 1, 5, 8, 13, 11, 20, 9}));
+}
+
+TEST_CASE("Sorting: median-of-three keeps quick sort at O(n log n) on sorted and reversed input")
+{
+    // With the first item as pivot these inputs cost about n^2/2 = 20 million comparisons.
+    const int n = 20000;
+    std::vector<int> sorted(n);
+    for (int i = 0; i < n; ++i) sorted[i] = i;
+    long compares = 0;
+    auto counting = [&compares](int a, int b) { ++compares; return a < b; };
+
+    std::vector<int> v = sorted;
+    quickSort(v, counting);
+    CHECK(v == sorted);
+    CHECK(compares < static_cast<long>(3.0 * n * std::log2(n)));
+
+    compares = 0;
+    v = std::vector<int>(sorted.rbegin(), sorted.rend());
+    quickSort(v, counting);
+    CHECK(v == sorted);
+    CHECK(compares < static_cast<long>(3.0 * n * std::log2(n)));
 }
 
 // ---------------------------------------------------------------------------
