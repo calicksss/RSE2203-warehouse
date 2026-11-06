@@ -14,6 +14,8 @@ ShelfRegistry::ShelfRegistry(const GridMap& map, const Catalogue& catalogue)
         if (!map.inBounds(p.shelf) || map.tile(map.index(p.shelf)) != Tile::Shelf)
             throw DataError("products", i + 1, "'" + p.name + "' is on " + toString(p.shelf) + ", which is not a shelf 'S' in the map");
         const CellIndex cell = map.index(p.shelf);
+        if (productAtCell_[static_cast<std::size_t>(cell)] >= 0)   // Catalogue::parse also rejects this; kept so the registry stands alone
+            throw DataError("products", i + 1, "'" + p.name + "' shares a shelf with '" + catalogue.at(productAtCell_[static_cast<std::size_t>(cell)]).name + "'");
         shelfOfProduct_.push_back(cell);
         productAtCell_[static_cast<std::size_t>(cell)] = i;
     }

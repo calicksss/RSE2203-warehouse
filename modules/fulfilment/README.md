@@ -6,12 +6,13 @@ This module contains the job manager, which decides which robot performs which t
 
 | File | Content | Data structure / algorithm | Complexity |
 |------|---------|----------------------------|------------|
-| `JobManager.hpp/.cpp` | Order backlog, release of orders to sorters, battery management, trip formation, robot selection, progress tracking | Backlog: **`ds::MinHeap`** (priority queue); records: `std::map` (balanced binary search tree); **greedy** least-loaded sorter, **greedy first-fit** trip filling and **greedy nearest** robot [L5b]; calls `RoutePlanner` | release O(log n) per order; dispatch O(pool + R·k) per trip, plus route planning |
+| `JobManager.hpp/.cpp` | Order backlog, release of orders to sorters, battery management, trip formation, robot selection, progress tracking | Backlog: **`ds::MinHeap`** (priority queue); records: `std::map` (balanced binary search tree); **greedy** least-loaded sorter, **greedy first-fit** trip filling and **greedy nearest** robot [L5b]; calls `RoutePlanner` | release O(log n + S) per order plus O(pool) per item inserted into a pool (S = sorters); dispatch O(pool + R·k) per trip, plus route planning |
 | `SortingRobot.hpp/.cpp` | Put-wall sorter: conveyor, bins and packing | Conveyor: **`ds::LinkedQueue`** [L2]; bins: small `vector` searched linearly; packing: **`ds::mergeSort`** (stable, heaviest first) [L4] | O(1) per sorted item; O(b) bin lookup; O(m log m) packing |
 | `ShelfRegistry.hpp/.cpp` | Product-to-shelf and shelf-to-product lookup, validated against the map | two arrays | O(1) |
 
 ## How it works
 
+0. **Refusing impossible orders.** `submit` ignores (and logs) an order that contains an item heavier than `tripPayloadKg`: no trip could ever carry it, and its bin would stay occupied for ever.
 1. **Backlog (priority queue).** Each order is keyed by `submit tick − (express ? 120 : 0)`, and the heap always returns the smallest key. An express order therefore overtakes standard orders that arrived up to 120 ticks earlier, but never older ones, so **no order can be postponed indefinitely**. A test covers each of these properties.
 2. **Release to a sorter (greedy load balancing).** The order at the top of the heap is assigned to the sorter that has a free bin and the fewest open orders (ties are broken by the fewest waiting items). This is a greedy assignment rule of the kind illustrated by the processor-scheduling example in Lecture 5b [L5b]. The order's items become `PickUnit`s in that sorter's pool, kept in order of urgency.
 3. **Battery management.** A robot on a trip that is close to being unable to reach a dock is sent to charge immediately, and its trip is suspended. An idle robot below 30% charge is sent to charge. In both cases the nearest *free* dock is selected and reserved.
@@ -52,16 +53,20 @@ Six bags of rice (12.0 kg). The seventh bag of rice (14 kg in total), the apple 
 ### Hand trace 3: packing order
 
 A bin receives, in this order, product 10 (1.0 kg), 20 (0.1 kg), 11 (1.0 kg), 30 (2.5 kg) and 12 (1.0 kg). Write the packing list, and explain why the three 1.0 kg items must remain in the order 10, 11, 12 (test "packing list is heaviest first …"; stability [L4]).
+<details><summary>Answer</summary>
+
+Packing list: **30 (2.5 kg), 10, 11, 12 (1.0 kg each), 20 (0.1 kg)**. Merge sort is stable: when two items weigh the same, the merge takes the one from the left half first (the comparator is a strict `>`), so equal items keep the order in which they were sorted into the bin. Quick sort and selection sort do not guarantee this.
+</details>
 
 ### Mutation testing
 
-`python tools/mutation_test.py fulfilment` introduces four defects:
+`python tools/mutation_test.py fulfilment` introduces twelve defects. The first four are:
 - the heap serves the least urgent order first;
 - one item too many is placed on a trip;
 - orders are always released to the first sorter;
 - packing uses quick sort, which is not stable.
 
-All four are detected. Each owner adds further mutants, for example "the battery check ignores the journey back to a dock". If no test fails, one is to be written (low drain combined with long trips).
+The other eight were added after the first round: the battery check ignores the journey back to a dock; the "fully charged robot may always start" rule is removed; the weight limit is ignored when filling a trip; a robot on a trip never goes to charge in time; an order never reaches SORTING; `openOrders_` is never decreased; `packTicks` is ignored; a product on a non-shelf cell is accepted. Each one first *survived* the original tests, which showed where the tests were weak; each is now detected by a dedicated test.
 
 ### Review questions
 

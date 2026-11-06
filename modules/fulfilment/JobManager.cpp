@@ -1,6 +1,8 @@
 #include "fulfilment/JobManager.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 
 namespace wh {
 
@@ -37,6 +39,14 @@ JobManager::JobManager(const SimConfig& config, const Catalogue& catalogue, cons
 void JobManager::submit(const Order& order, Tick now)
 {
     if (order.units() == 0 || records_.count(order.id) > 0) return;
+    // An item heavier than a picker can carry would make an empty trip that never ends, so refuse it up front.
+    for (const OrderLine& line : order.lines) {
+        if (line.qty > 0 && line.unitWeightKg > config_.tripPayloadKg + 1e-9) {
+            log_.add(now, Severity::Alert, "JOBS",
+                     "Order #" + std::to_string(order.id) + " rejected: '" + line.name + "' is heavier than a picker can carry");
+            return;
+        }
+    }
     OrderRecord rec;
     rec.order = order;
     rec.unitsTotal = order.units();
@@ -110,7 +120,7 @@ void JobManager::returnUnits(int pool, const std::vector<PickUnit>& units)
     for (const PickUnit& u : units) {
         std::size_t pos = p.size();
         while (pos > 0 && u.priorityKey < p[pos - 1].priorityKey) --pos;
-        p.insert(p.begin() + static_cast<long>(pos), u);
+        p.insert(p.begin() + static_cast<std::ptrdiff_t>(pos), u);
     }
 }
 
@@ -194,7 +204,7 @@ std::vector<PickUnit> JobManager::takeTripUnits(int pool)
     std::vector<PickUnit> rest;
     double weight = 0.0;
     for (const PickUnit& u : p) {
-        const bool fits = static_cast<int>(trip.size()) < config_.tripCapacityUnits && weight + u.weightKg <= config_.tripPayloadKg + 1e-9;
+        const bool fits = static_cast<int>(trip.size()) < std::max(1, config_.tripCapacityUnits) && weight + u.weightKg <= config_.tripPayloadKg + 1e-9;
         if (fits) {
             trip.push_back(u);
             weight += u.weightKg;
@@ -214,7 +224,10 @@ std::vector<PickStop> JobManager::groupByShelf(const std::vector<PickUnit>& unit
     for (const PickUnit& u : units) {
         int found = -1;
         for (std::size_t i = 0; i < stops.size(); ++i)
-            if (stops[i].shelf == u.shelf) found = static_cast<int>(i);
+            if (stops[i].shelf == u.shelf) {
+                found = static_cast<int>(i);
+                break;
+            }
         if (found < 0) {
             PickStop s;
             s.shelf = u.shelf;
@@ -245,7 +258,7 @@ int JobManager::chooseRobot(const std::vector<PickingRobot*>& candidates, const 
             }
         }
     }
-    return best;
+    return best < 0 ? 0 : best;   // nobody can reach any shelf (cannot happen on a validated map): take the first robot
 }
 
 void JobManager::dispatchTrips(Tick now, const std::vector<PickingRobot*>& pickers, std::vector<DockingStation>& docks)
@@ -258,6 +271,7 @@ void JobManager::dispatchTrips(Tick now, const std::vector<PickingRobot*>& picke
         const int pool = mostUrgentPool();
         if (pool < 0) return;                       // nothing to fetch
         const std::vector<PickUnit> units = takeTripUnits(pool);
+        if (units.empty()) return;                  // cannot happen: submit() refuses items that are too heavy to carry
         std::vector<PickStop> stops = groupByShelf(units);
         const SortingRobot& sorter = *sorters_[static_cast<std::size_t>(pool)];
 

@@ -75,7 +75,8 @@ public:
     JobManager(const SimConfig& config, const Catalogue& catalogue, const ShelfRegistry& shelves, const GridMap& map,
                DistanceTable& distances, const std::vector<SortingRobot*>& sorters, EventLog& log, Metrics& metrics);
 
-    /// A new customer order arrives. Orders with no items, or an id we already have, are ignored.
+    /// A new customer order arrives. Orders with no items, an id we already have, or an item heavier than
+    /// `tripPayloadKg` (it could never be carried) are ignored; the last case is logged as an alert.
     void submit(const Order& order, Tick now);
 
     /// The three steps described above. Call once per tick, before the robots move.
