@@ -158,6 +158,40 @@ def plot_policies(rows, out):
     save(fig, out, "e6_policies.png")
 
 
+def plot_fulfilment(rows, out):
+    """E7: how far first-fit and first-fit decreasing are from the exact minimum, as the weight limit tightens."""
+    payloads = sorted({float(r["payload_kg"]) for r in rows}, reverse=True)
+    sizes = sorted({int(r["n"]) for r in rows})
+
+    def mean(vals):
+        vals = list(vals)
+        return sum(vals) / len(vals)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+    n_focus = 16 if 16 in sizes else sizes[-1]
+    for i, (key, label) in enumerate([("trips_ff", "first-fit (urgency order)"), ("trips_ffd", "first-fit decreasing")]):
+        ys = []
+        for p in payloads:
+            sel = [r for r in rows if float(r["payload_kg"]) == p and int(r["n"]) == n_focus]
+            ys.append(mean(int(r[key]) - int(r["trips_opt"]) for r in sel))
+        ax1.plot(payloads, ys, marker="o", color=SERIES[i], label=label)
+    style(ax1, f"E7  Extra trips over the exact minimum (n = {n_focus})", "trip weight limit (kg), tighter to the right", "mean extra trips per pool")
+    ax1.invert_xaxis()
+    ax1.legend(frameon=False, fontsize=9)
+
+    for i, n in enumerate(sizes):
+        ys = []
+        for p in payloads:
+            sel = [r for r in rows if float(r["payload_kg"]) == p and int(r["n"]) == n]
+            ys.append(100.0 * mean(int(r["trips_ff"]) == int(r["trips_opt"]) for r in sel))
+        ax2.plot(payloads, ys, marker="o", color=SERIES[i], label=f"n = {n}")
+    style(ax2, "E7  Pools where first-fit is optimal", "trip weight limit (kg), tighter to the right", "% of pools")
+    ax2.invert_xaxis()
+    ax2.set_ylim(0, 102)
+    ax2.legend(frameon=False, fontsize=9)
+    save(fig, out, "e7_fulfilment.png")
+
+
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     parser = argparse.ArgumentParser()
@@ -166,7 +200,7 @@ def main():
     out = os.path.join(args.folder, "plots")
     os.makedirs(out, exist_ok=True)
     jobs = [("e1_sorting.csv", plot_sorting), ("e3_pathfinding.csv", plot_pathfinding), ("e4_routing.csv", plot_routing),
-            ("e5_traffic.csv", plot_traffic), ("e6_policies.csv", plot_policies)]
+            ("e5_traffic.csv", plot_traffic), ("e6_policies.csv", plot_policies), ("e7_fulfilment.csv", plot_fulfilment)]
     for name, fn in jobs:
         path = os.path.join(args.folder, name)
         if os.path.exists(path):

@@ -8,6 +8,7 @@
  *   experiments routing       E4  as-given vs greedy vs backtracking routes           (WP-C)
  *   experiments traffic       E5  robots 1..8: throughput and congestion              (WP-D)
  *   experiments policies      E6  routing x robot-choice policies, whole warehouse    (WP-E)
+ *   experiments fulfilment    E7  trip filling: first-fit vs first-fit decreasing vs exact (WP-E)
  *   experiments all           everything
  *
  * Every experiment prints a summary table and writes a CSV file into
@@ -381,6 +382,208 @@ void experimentPolicies()
     }
 }
 
+// ===========================================================================
+// E7 Trip filling: greedy first-fit vs first-fit decreasing vs exact (WP-E, fulfilment)
+// ===========================================================================
+//
+// JobManager::takeTripUnits() fills a trip greedily: walk the pool in urgency
+// order and take every item that still fits (<= tripCapacityUnits items and
+// <= tripPayloadKg kg). Clearing a pool this way is a two-limit bin-packing
+// problem (NP-hard), so first-fit may need more trips than necessary.
+//
+//   A  first-fit, urgency order        what the program does now   (Lecture 5b: greedy)
+//   B  first-fit decreasing            merge-sort heaviest first, then first-fit (Lecture 4)
+//   C  exact minimum                   backtracking with pruning   (Lecture 5b)
+//
+// The experiment does not need the simulation: it works on a pool of items
+// whose weights come from the real catalogue.
+
+struct TripItem {
+    double kg;
+    int rank;   // 0 = most urgent
+};
+
+struct FitResult {
+    int trips = 0;
+    std::vector<int> tripOfRank;   // trip number (1-based) in which each item travels
+};
+
+// Same rule as JobManager::takeTripUnits, repeated until the pool is empty.
+FitResult firstFitTrips(std::vector<TripItem> pool, int capacity, double payload)
+{
+    FitResult r;
+    r.tripOfRank.assign(pool.size(), 0);
+    while (!pool.empty()) {
+        ++r.trips;
+        std::vector<TripItem> rest;
+        int count = 0;
+        double weight = 0.0;
+        for (const TripItem& u : pool) {
+            if (count < capacity && weight + u.kg <= payload + 1e-9) {
+                ++count;
+                weight += u.kg;
+                r.tripOfRank[static_cast<std::size_t>(u.rank)] = r.trips;
+            } else {
+                rest.push_back(u);
+            }
+        }
+        pool = rest;
+    }
+    return r;
+}
+
+// Can the weights be packed into `trips` trips? Depth-first backtracking.
+struct TripPacker {
+    const std::vector<double>& w;   // heaviest first: fails early
+    int capacity;
+    double payload;
+    std::vector<double> load;
+    std::vector<int> count;
+    long nodes = 0;
+    long limit = 0;
+    bool capped = false;
+
+    TripPacker(const std::vector<double>& weights, int trips, int cap, double pay, long nodeLimit)
+        : w(weights), capacity(cap), payload(pay), load(static_cast<std::size_t>(trips), 0.0), count(static_cast<std::size_t>(trips), 0), limit(nodeLimit) {}
+
+    bool place(std::size_t i)
+    {
+        if (i == w.size()) return true;
+        if (++nodes > limit) {
+            capped = true;
+            return false;
+        }
+        for (std::size_t b = 0; b < load.size(); ++b) {
+            if (count[b] >= capacity || load[b] + w[i] > payload + 1e-9) continue;   // does not fit
+            bool twin = false;                                                         // pruning: an earlier trip with the
+            for (std::size_t e = 0; e < b; ++e)                                        // same load and count is equivalent
+                if (count[e] == count[b] && std::fabs(load[e] - load[b]) < 1e-9) twin = true;
+            if (twin) continue;
+            load[b] += w[i];
+            ++count[b];
+            const bool ok = place(i + 1);
+            load[b] -= w[i];
+            --count[b];
+            if (ok) return true;
+            if (capped) return false;
+        }
+        return false;
+    }
+};
+
+struct ExactResult {
+    int trips = 0;
+    long nodes = 0;
+    bool capped = false;
+};
+
+// Smallest number of trips, searching upwards from the lower bound. `upper` (a
+// known feasible answer, from A or B) stops the search: nothing below it
+// means `upper` is optimal.
+ExactResult exactTrips(std::vector<double> weights, int lower, int upper, int capacity, double payload, long nodeLimit)
+{
+    std::sort(weights.begin(), weights.end(), [](double a, double b) { return a > b; });
+    ExactResult r;
+    r.trips = upper;
+    for (int t = lower; t < upper; ++t) {
+        TripPacker packer(weights, t, capacity, payload, nodeLimit);
+        const bool ok = packer.place(0);
+        r.nodes += packer.nodes;
+        if (packer.capped) {
+            r.capped = true;   // gave up: `upper` is only an upper bound
+            return r;
+        }
+        if (ok) {
+            r.trips = t;
+            return r;
+        }
+    }
+    return r;
+}
+
+void experimentFulfilment()
+{
+    const SimConfig defaults;
+    std::cout << "\nE7  TRIP FILLING: first-fit (urgency) vs first-fit decreasing vs exact (1000 random pools per row)\n"
+              << "    sweep: trip payload limit (kg) x pool size n; the item-count limit is " << defaults.tripCapacityUnits << "\n";
+    const int capacity = defaults.tripCapacityUnits;
+    const std::vector<Product>& products = warehouseCatalogue().all();
+    constexpr int kPools = 1000;   // payload limits below the heaviest product (2.5 kg) are not swept
+    constexpr long kNodeLimit = 2000000;
+
+    std::ofstream csv = openCsv("e7_fulfilment.csv", "payload_kg,n,trial,total_kg,lower_bound,binding,trips_ff,trips_ffd,trips_opt,capped,nodes_exact,urgent_trip_ff,urgent_trip_ffd,ff_us,ffd_us,exact_us");
+    std::cout << std::right << std::setw(8) << "payload" << std::setw(4) << "n" << std::setw(9) << "bound" << std::setw(8) << "FF" << std::setw(8) << "FFD" << std::setw(8) << "exact"
+              << std::setw(11) << "FF opt %" << std::setw(11) << "FFD opt %" << std::setw(11) << "FF gap %" << std::setw(12) << "urgent FF" << std::setw(12) << "urgent FFD"
+              << std::setw(13) << "nodes" << std::setw(8) << "capped" << '\n';
+
+    std::mt19937 rng(2026);
+    std::uniform_int_distribution<int> pick(0, static_cast<int>(products.size()) - 1);
+    for (double payload : {12.0, 8.0, 6.0, 5.0, 4.0, 3.0})
+    for (int n : {8, 12, 16, 20}) {
+        double sumBound = 0, sumFf = 0, sumFfd = 0, sumOpt = 0, sumUrgFf = 0, sumUrgFfd = 0;
+        long sumNodes = 0;
+        int ffOptimal = 0, ffdOptimal = 0, cappedCount = 0;
+        for (int trial = 0; trial < kPools; ++trial) {
+            std::vector<TripItem> pool;   // already in urgency order: rank = position
+            double total = 0.0;
+            while (static_cast<int>(pool.size()) < n) {
+                const double kg = products[static_cast<std::size_t>(pick(rng))].weightKg;
+                if (kg > payload) continue;   // a single item must fit on a trip
+                pool.push_back({kg, static_cast<int>(pool.size())});
+                total += kg;
+            }
+            const int countBound = (n + capacity - 1) / capacity;
+            const int weightBound = static_cast<int>(std::ceil(total / payload - 1e-9));
+            const int lower = std::max(countBound, weightBound);
+            const char* binding = weightBound > countBound ? "weight" : "count";
+
+            auto t0 = Clock::now();
+            const FitResult ff = firstFitTrips(pool, capacity, payload);
+            const double ffUs = msSince(t0) * 1000.0;
+
+            std::vector<TripItem> byWeight = pool;
+            t0 = Clock::now();
+            mergeSort(byWeight, [](const TripItem& a, const TripItem& b) { return a.kg > b.kg; });   // stable: ties keep urgency order
+            const FitResult ffd = firstFitTrips(byWeight, capacity, payload);
+            const double ffdUs = msSince(t0) * 1000.0;
+
+            std::vector<double> weights;
+            for (const TripItem& u : pool) weights.push_back(u.kg);
+            t0 = Clock::now();
+            const ExactResult opt = exactTrips(weights, lower, std::min(ff.trips, ffd.trips), capacity, payload, kNodeLimit);
+            const double exactUs = msSince(t0) * 1000.0;
+
+            // Delay of the most urgent quarter of the pool: mean trip number.
+            const int urgent = std::max(1, n / 4);
+            double urgFf = 0, urgFfd = 0;
+            for (int r = 0; r < urgent; ++r) {
+                urgFf += ff.tripOfRank[static_cast<std::size_t>(r)];
+                urgFfd += ffd.tripOfRank[static_cast<std::size_t>(r)];
+            }
+            urgFf /= urgent;
+            urgFfd /= urgent;
+
+            sumBound += lower;
+            sumFf += ff.trips;
+            sumFfd += ffd.trips;
+            sumOpt += opt.trips;
+            sumNodes += opt.nodes;
+            sumUrgFf += urgFf;
+            sumUrgFfd += urgFfd;
+            if (ff.trips == opt.trips) ++ffOptimal;
+            if (ffd.trips == opt.trips) ++ffdOptimal;
+            if (opt.capped) ++cappedCount;
+            csv << fmt(payload, 1) << ',' << n << ',' << trial << ',' << fmt(total, 2) << ',' << lower << ',' << binding << ',' << ff.trips << ',' << ffd.trips << ',' << opt.trips << ','
+                << (opt.capped ? 1 : 0) << ',' << opt.nodes << ',' << fmt(urgFf, 2) << ',' << fmt(urgFfd, 2) << ',' << fmt(ffUs, 2) << ',' << fmt(ffdUs, 2) << ','
+                << fmt(exactUs, 2) << '\n';
+        }
+        std::cout << std::setw(8) << fmt(payload, 1) << std::setw(4) << n << std::setw(9) << fmt(sumBound / kPools, 3) << std::setw(8) << fmt(sumFf / kPools, 3) << std::setw(8) << fmt(sumFfd / kPools, 3)
+                  << std::setw(8) << fmt(sumOpt / kPools, 3) << std::setw(11) << fmt(100.0 * ffOptimal / kPools, 1) << std::setw(11) << fmt(100.0 * ffdOptimal / kPools, 1)
+                  << std::setw(11) << fmt(100.0 * (sumFf - sumOpt) / sumOpt, 2) << std::setw(12) << fmt(sumUrgFf / kPools, 2) << std::setw(12) << fmt(sumUrgFfd / kPools, 2)
+                  << std::setw(13) << sumNodes / kPools << std::setw(8) << cappedCount << '\n';
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -399,8 +602,9 @@ int main(int argc, char** argv)
     if (all || which == "routing") { experimentRouting(); ran = true; }
     if (all || which == "traffic") { experimentTraffic(); ran = true; }
     if (all || which == "policies") { experimentPolicies(); ran = true; }
+    if (all || which == "fulfilment") { experimentFulfilment(); ran = true; }
     if (!ran) {
-        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|all] [--out DIR]\n";
+        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|fulfilment|all] [--out DIR]\n";
         return 2;
     }
     return 0;
