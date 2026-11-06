@@ -104,7 +104,14 @@ private:
 
     void copyFrom(const LinkedQueue& other)
     {
-        for (Node* n = other.head_; n != nullptr; n = n->next) enqueue(n->data);
+        // If `new` (or T's copy) throws half-way, the destructor will NOT run
+        // when this is called from the copy constructor, so free what we built.
+        try {
+            for (Node* n = other.head_; n != nullptr; n = n->next) enqueue(n->data);
+        } catch (...) {
+            clear();
+            throw;
+        }
     }
 
     Node* head_ = nullptr;
