@@ -2,6 +2,7 @@
  * @file test_fulfilment.cpp
  * @brief Tests for the fulfilment module: shelf registry, sorting robot (put wall + packing), job manager.
  */
+#include <fstream>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -103,6 +104,35 @@ TEST_CASE("ShelfRegistry: rejects a product that is not on a shelf, and a produc
     CHECK_THROWS(ShelfRegistry(w.map, Catalogue::parse(tooFew)));
 }
 
+TEST_CASE("ShelfRegistry: a product on a floor cell is rejected even when the product count matches the shelf count")
+{
+    Warehouse w;
+    // Real products file, but the FIRST product is moved to (1,3), a floor cell: the count still matches.
+    std::ifstream file(std::string(WH_DATA_DIR) + "/Products.txt");
+    std::ostringstream edited;
+    std::string line;
+    bool changed = false;
+    while (std::getline(file, line)) {
+        std::istringstream iss(line);
+        std::vector<std::string> tok;
+        std::string t;
+        while (iss >> t) tok.push_back(t);
+        if (!changed && tok.size() >= 6 && tok[0][0] != '#') {
+            tok[4] = "1";
+            tok[5] = "3";
+            changed = true;
+            line.clear();
+            for (const std::string& x : tok) line += x + " ";
+        }
+        edited << line << "\n";
+    }
+    REQUIRE(changed);
+    std::istringstream in(edited.str());
+    const Catalogue moved = Catalogue::parse(in);
+    CHECK(moved.size() == static_cast<int>(w.map.shelves().size()));   // counts match, so only the tile check can catch it
+    CHECK_THROWS(ShelfRegistry(w.map, moved));
+}
+
 // ---------------------------------------------------------------------------
 // SortingRobot
 // ---------------------------------------------------------------------------
@@ -153,6 +183,38 @@ TEST_CASE("SortingRobot: packing list is heaviest first, and equal weights keep 
     CHECK(list[2].productIndex == 11);
     CHECK(list[3].productIndex == 12);
     CHECK(list[4].productIndex == 20);   // 0.1 kg last
+}
+
+TEST_CASE("SortingRobot: sortTicksPerUnit and packTicks control the timing")
+{
+    SimConfig config;
+    config.sortTicksPerUnit = 3;
+    config.packTicks = 5;
+    EventLog log;
+    PackedListener listener;
+    SortingRobot sorter(1, 0, 0, 1, 1);
+    sorter.openBin(1, 1);
+    sorter.induct({unit(1, 10, 1.0)});
+    for (Tick t = 1; t <= 2; ++t) {
+        TickContext ctx{t, config, log, listener};
+        sorter.tick(ctx);
+    }
+    CHECK(listener.sorted == 0);   // the arm needs 3 ticks per item
+    {
+        TickContext ctx{3, config, log, listener};
+        sorter.tick(ctx);
+    }
+    CHECK(listener.sorted == 1);   // sorted on tick 3 ...
+    for (Tick t = 4; t <= 7; ++t) {
+        TickContext ctx{t, config, log, listener};
+        sorter.tick(ctx);
+    }
+    CHECK(listener.packedOrders.empty());   // ... then 5 ticks of packing: not finished on tick 7
+    {
+        TickContext ctx{8, config, log, listener};
+        sorter.tick(ctx);
+    }
+    CHECK(listener.packedOrders.size() == 1);
 }
 
 TEST_CASE("SortingRobot: an item for an order without a bin is a logic error")
@@ -290,4 +352,136 @@ TEST_CASE("JobManager: a trip's shelves are visited from a real access cell and 
     CHECK(r.sorterIndex() == sorter);
     CHECK(r.goal() != kNoCell);
     CHECK(w.map.isWalkable(r.goal()));
+}
+
+TEST_CASE("JobManager: a trip never exceeds the weight limit (first-fit: six 2 kg rice bags fit in 12 kg, the seventh waits)")
+{
+    Warehouse w(1, 4, 1);
+    w.jobs->submit(w.makeOrder(1, Priority::Standard, {{"Bag of rice", 7}}), 0);   // 7 x 2.0 kg = 14 kg > 12 kg
+    w.jobs->update(1, w.pickers, w.docks);
+    CHECK(w.pickers[0]->unitsOnTrip() == 6);
+    CHECK(w.jobs->pendingUnits() == 1);
+}
+
+TEST_CASE("JobManager: units of one order keep their order on the trip (AsGiven visits shelves in pool order)")
+{
+    Warehouse w(1, 4, 1);
+    w.config.routing = RoutingMethod::AsGiven;
+    w.jobs->submit(w.makeOrder(1, Priority::Standard, {{"Milk", 1}, {"Eggs", 1}, {"Coffee", 1}}), 0);
+    w.jobs->update(1, w.pickers, w.docks);
+    const std::vector<CellIndex> left = w.pickers[0]->shelvesLeft();
+    REQUIRE(left.size() == 3);
+    CHECK(left[0] == w.shelves.shelfOf(w.catalogue.findByName("Milk")));
+    CHECK(left[1] == w.shelves.shelfOf(w.catalogue.findByName("Eggs")));
+    CHECK(left[2] == w.shelves.shelfOf(w.catalogue.findByName("Coffee")));
+}
+
+TEST_CASE("JobManager: an item too heavy for any trip is refused instead of creating an empty trip")
+{
+    for (AssignmentMethod method : {AssignmentMethod::Nearest, AssignmentMethod::FirstAvailable}) {
+        Warehouse w(1, 4, 2);
+        w.config.assignment = method;
+        w.config.tripPayloadKg = 0.05;   // Milk (1 kg) can never be carried
+        w.jobs->submit(w.makeOrder(1, Priority::Standard, {{"Milk", 1}}), 0);
+        CHECK(w.jobs->record(1) == nullptr);
+        CHECK(w.jobs->openOrders() == 0);
+        w.jobs->update(1, w.pickers, w.docks);   // must not crash or throw
+        for (PickingRobot* r : w.pickers) CHECK(!r->hasWork());
+        CHECK(w.log.total() >= 1);   // the rejection is logged
+    }
+}
+
+TEST_CASE("JobManager: a trip's energy includes the way from the sorter to a dock, and a full battery may always start")
+{
+    // Work out, with the same planner the JobManager uses, how long the trip is and how far the nearest dock is.
+    Warehouse probe(4, 4, 1, 90.0);
+    const CellIndex home = probe.map.homes()[0];
+    const CellIndex induction = probe.sorters[0]->inductionCell();
+    const CellIndex milk = probe.shelves.shelfOf(probe.catalogue.findByName("Milk"));
+    RoutePlanner planner(probe.map, probe.distances);
+    const int tripLength = planner.plan(probe.config.routing, probe.config.exactRouteLimit, home, {milk}, induction).length;
+    int dockDistance = kUnreachable;
+    for (const DockingStation& d : probe.docks) dockDistance = std::min(dockDistance, probe.distances.distance(induction, d.cell()));
+    REQUIRE(tripLength > 0);
+    REQUIRE(dockDistance > 0);
+    const double reserve = probe.config.batteryReserve;
+    // Choose the drain so that the trip alone fits into 90 %, but trip + way to the dock does not.
+    const double drain = (90.0 - reserve) / (tripLength + dockDistance / 2.0);
+
+    {   // trip + dock does not fit: the robot is sent to charge and gets no trip
+        Warehouse w(4, 4, 1, 90.0);
+        w.config.drainPerMove = drain;
+        w.jobs->submit(w.makeOrder(1, Priority::Standard, {{"Milk", 1}}), 0);
+        w.jobs->update(1, w.pickers, w.docks);
+        CHECK(!w.pickers[0]->hasWork());
+        CHECK(w.pickers[0]->isCharging());
+    }
+    {   // plenty of charge for everything: the robot takes the trip
+        Warehouse w(4, 4, 1, 90.0);
+        w.config.drainPerMove = drain / 3.0;
+        w.jobs->submit(w.makeOrder(1, Priority::Standard, {{"Milk", 1}}), 0);
+        w.jobs->update(1, w.pickers, w.docks);
+        CHECK(w.pickers[0]->hasWork());
+        CHECK(!w.pickers[0]->isCharging());
+    }
+    {   // a FULLY charged robot starts even if the trip is longer than one charge
+        Warehouse w(4, 4, 1, 100.0);
+        w.config.drainPerMove = 5.0;
+        w.jobs->submit(w.makeOrder(1, Priority::Standard, {{"Milk", 1}}), 0);
+        w.jobs->update(1, w.pickers, w.docks);
+        CHECK(w.pickers[0]->hasWork());
+    }
+}
+
+TEST_CASE("JobManager: a robot on a trip that is about to run flat is sent to charge, and keeps its trip")
+{
+    Warehouse w(4, 4, 1);
+    w.jobs->submit(w.makeOrder(1, Priority::Standard, {{"Milk", 1}}), 0);
+    w.jobs->update(1, w.pickers, w.docks);
+    PickingRobot& r = *w.pickers[0];
+    REQUIRE(r.hasWork());
+    r.moveTo(r.cell(), 99.0);   // drain to about 1 %: less than the way to a dock + reserve
+    w.jobs->update(2, w.pickers, w.docks);
+    CHECK(r.isCharging());
+    CHECK(r.hasWork());         // the trip is paused, not lost
+    CHECK(r.stopsLeft() == 1);
+}
+
+TEST_CASE("JobManager: an order moves through every status and is closed when packed")
+{
+    Warehouse w(1, 4, 0);
+    w.jobs->submit(w.makeOrder(1, Priority::Standard, {{"Milk", 1}, {"Coffee", 1}}), 0);   // 1.0 kg and 0.5 kg
+    CHECK(w.jobs->record(1)->status == OrderStatus::Queued);
+    w.jobs->update(1, w.pickers, w.docks);
+    CHECK(w.jobs->record(1)->status == OrderStatus::Picking);
+    CHECK(w.jobs->openOrders() == 1);
+    CHECK(!w.jobs->allWorkDone());
+
+    const Order& order = w.makeOrder(1, Priority::Standard, {{"Milk", 1}, {"Coffee", 1}});
+    std::vector<PickUnit> units;
+    for (const OrderLine& l : order.lines) units.push_back({1, l.productIndex, w.shelves.shelfOf(l.productIndex), l.unitWeightKg, 0});
+
+    w.jobs->onUnitsPicked({units[0]}, 5);
+    CHECK(w.jobs->record(1)->status == OrderStatus::Picking);   // one of two picked
+    w.jobs->onUnitsPicked({units[1]}, 6);
+    CHECK(w.jobs->record(1)->status == OrderStatus::Sorting);
+    w.jobs->onUnitsDelivered(0, units, 7);
+
+    bool sawPacking = false;
+    for (Tick t = 8; t <= 40 && w.jobs->record(1)->status != OrderStatus::Completed; ++t) {
+        TickContext ctx{t, w.config, w.log, *w.jobs};
+        w.sorters[0]->tick(ctx);
+        if (w.jobs->record(1)->status == OrderStatus::Packing) sawPacking = true;
+    }
+    CHECK(sawPacking);
+    const OrderRecord* rec = w.jobs->record(1);
+    REQUIRE(rec->status == OrderStatus::Completed);
+    REQUIRE(rec->packingList.size() == 2);
+    CHECK(rec->packingList[0] == "Milk");     // heaviest first
+    CHECK(rec->packingList[1] == "Coffee");
+    CHECK(w.jobs->openOrders() == 0);
+    CHECK(w.jobs->allWorkDone());
+    CHECK(w.metrics.ordersCompleted == 1);
+    CHECK(w.metrics.unitsPicked == 2);
+    CHECK(w.metrics.unitsSorted == 2);
 }
