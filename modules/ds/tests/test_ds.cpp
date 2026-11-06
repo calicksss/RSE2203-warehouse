@@ -23,16 +23,20 @@ using namespace wh;
 
 namespace {
 
-std::vector<int> randomInts(int n, int maxValue, unsigned seed)
+/** Generate a vector containing random integers, (no. of int, largest possible int, control random no. sequence) **/
+std::vector<int> randomInts(int n, int maxValue, unsigned seed) 
 {
-    std::mt19937 rng(seed);
-    std::uniform_int_distribution<int> dist(0, maxValue);
-    std::vector<int> v(n);
-    for (int& x : v) x = dist(rng);
+    std::mt19937 rng(seed);                                //std::mt19937 is a Mersenne Twister random number generator. 
+    std::uniform_int_distribution<int> dist(0, maxValue);  //tells generator to produce integers 0 < x < maxValue
+    std::vector<int> v(n);                                 //create a vector
+    for (int& x : v) x = dist(rng);                        //store random numbers inside x
     return v;
 }
 
-/// An item with a key (what we sort by) and a label (to check stability).
+/// An item with a key and a label.
+/**key: the vale that we want to sort by
+   label: an identifier that lets us track the original position of identity of an item
+    **/
 struct Tagged {
     int key;
     char label;
