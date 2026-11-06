@@ -279,6 +279,7 @@ void JobManager::dispatchTrips(Tick now, const std::vector<PickingRobot*>& picke
         bool assigned = false;
         while (!idle.empty() && !assigned) {
             const int pick = chooseRobot(idle, stops);
+            if (pick < 0) break;                    // no usable robot: the items are put back below
             PickingRobot& robot = *idle[static_cast<std::size_t>(pick)];
             idle.erase(idle.begin() + pick);
 
