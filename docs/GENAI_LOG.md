@@ -99,6 +99,32 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 - **Scores:** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 5/5
 - **Evidence:** Accuracy: all tests pass and the mutation run goes from 3 surprises to 0, but two mistakes (the test count and the unsafe mutant). Completeness: closes three gaps, but findings 1-5 are only reported. Clarity: test names state the claim, and the section header explains why they were added. Relevance: three tests target the surviving mutants (exactLimit, DistanceTable, bfsPath); the dock and induction-cell tests pin behaviour the old tests did not check.
 
+## G6: E10 route-improvement experiment (greedy + 2-opt), WP-C
+
+- **Date / member / work package:** 16 November 2026 / liyou / WP-C (experiments)
+- **Tool and version:** Claude (Anthropic), Claude Code, Sonnet 5.5
+- **Prompt (summary):** "Design a standalone experiment in `experiments/experiments.cpp` that tests whether the current route planner can be improved: compare greedy, greedy plus a local search, and the exact backtracking search on the same trips as E4. Keep it outside the navigation module."
+- **Output produced:**
+  - `experimentRouteImprovement()` (E10) and its helpers: `routeLength`, and `improveRoute`, which repeats 2-opt segment reversal and "visit a shelf from its other side" moves until no move shortens the route;
+  - the `improve` dispatch key and usage string;
+  - `plot_route_improvement()` in `plot_results.py`, which draws route length and time in one chart.
+- **Verification performed:**
+  - I ran E10 myself in a Codespace. The route lengths, gaps and counts are identical to the tool's own run; only the microsecond timings differ.
+  - The experiment uses the same seed and trip sampling as E4. The greedy and exact averages in E10 equal E4's (for example k=5: 78.5 and 68.8; k=10: 99.6 and 79.1).
+  - Checks on the CSV (1000 trips): 2-opt is never shorter than exact, never longer than greedy, and greedy is never shorter than exact.
+  - The navigation module is unchanged, so its 21 tests and the dependency check still pass (`ctest`, `check_dependencies.py`).
+- **Problems identified:**
+  - The first version of the experiment was named E9, which a teammate had already taken. I renamed it to E10.
+  - The tool-supplied `plot_results.py` was built from an older copy and would have deleted a teammate's E8 plotting code, so only the E10 function was pasted in.
+  - 2-opt does not always reach the optimum: it matches exact in 100/100 trips at k=1 but only 26/100 at k=10 (gap 10.3%). It is a heuristic, not a replacement for exact search.
+- **Changes made:** added E10 to `experiments.cpp`, an E10 plot to `plot_results.py`, and `e10_route_improvement.csv` and `e10_route_improvement.png` to `experiments/results/`. No navigation source files were changed. <add anything you edited by hand>
+- **Scores:** Accuracy <4>/5 · Completeness <4>/5 · Clarity <4>/5 · Relevance <5>/5
+- **Evidence for the scores:**
+  - Accuracy: the output compiled and ran first time, and my Codespace run reproduced every route length; deduction because the first plot script would have removed E8 and the experiment name clashed with E9.
+  - Completeness: compares three methods on the same 100 trips for k=1..10 with CSV and chart; deduction because it only tests one local search (2-opt plus side change) and does not try Held-Karp or other improvements.
+  - Clarity: the code is commented and follows the style of E4; the chart titles and table columns are readable.
+  - Relevance: it directly answers Calix's request to justify the current algorithm or improve it. It supports keeping `exactLimit = 8` and suggests greedy + 2-opt as a fallback above it.
+
 ---
 ## Summary table (for the report)
 
