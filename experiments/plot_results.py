@@ -264,6 +264,26 @@ def plot_trees(rows, out):
     ax.legend(frameon=False, fontsize=8, loc="upper right")
     save(fig, out, "e8_catalogue.png")
 
+def plot_route_improvement(rows, out):
+    by_k = defaultdict(list)
+    for r in rows:
+        by_k[int(r["k"])].append(r)
+    ks = sorted(by_k)
+    mean = lambda k, col: sum(float(r[col]) for r in by_k[k]) / len(by_k[k])  # noqa: E731
+    labels = ["greedy NN", "greedy + 2-opt", "exact (backtracking)"]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 4.6))
+    for i, (col, label) in enumerate(zip(["greedy", "two_opt", "exact"], labels)):
+        ax1.plot(ks, [mean(k, col) for k in ks], marker="o", markersize=5, linewidth=2, color=SERIES[i], label=label)
+    style(ax1, "E10  Route length vs shelves per trip", "k (shelves)", "moves (mean of 100 trips)")
+    ax1.legend(frameon=False, fontsize=9)
+
+    for i, (col, label) in enumerate(zip(["greedy_us", "two_opt_us", "exact_us"], labels)):
+        ax2.plot(ks, [mean(k, col) for k in ks], marker="o", markersize=5, linewidth=2, color=SERIES[i], label=label)
+    ax2.set_yscale("log")
+    style(ax2, "E10  Time per route (log scale; machine-dependent)", "k (shelves)", "microseconds (mean of 100 trips)")
+    ax2.legend(frameon=False, fontsize=9)
+    save(fig, out, "e10_route_improvement.png")
 
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
@@ -274,7 +294,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     jobs = [("e1_sorting.csv", plot_sorting), ("e3_pathfinding.csv", plot_pathfinding), ("e4_routing.csv", plot_routing),
             ("e5_traffic.csv", plot_traffic), ("e6_policies.csv", plot_policies), ("e7_fulfilment.csv", plot_fulfilment),
-            ("e8_trees.csv", plot_trees)]
+            ("e8_trees.csv", plot_trees), ("e10_route_improvement.csv", plot_route_improvement)]
     for name, fn in jobs:
         path = os.path.join(args.folder, name)
         if os.path.exists(path):
