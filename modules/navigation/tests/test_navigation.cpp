@@ -396,3 +396,80 @@ TEST_CASE("Obstacles: never on protected cells or robots, never more than the ma
     CHECK(obstacles.active().empty());
     for (char blocked : obstacles.mask()) CHECK(blocked == 0);
 }
+
+// ---------------------------------------------------------------------------
+// WP-C additions: gaps found by my own mutants (see docs/GENAI_LOG.md)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("BFS path: a blocked GOAL is still reachable (same rule as A*)")
+{
+    const GridMap map = tinyMap();
+    std::vector<char> blocked(static_cast<std::size_t>(map.cellCount()), 0);
+    const CellIndex goal = map.index({3, 3});
+    blocked[static_cast<std::size_t>(goal)] = 1;
+    const PathResult viaBfs = bfsPath(map, map.index({1, 1}), goal, blocked);
+    const PathResult viaAStar = aStarPath(map, map.index({1, 1}), goal, blocked);
+    CHECK(viaBfs.found);
+    CHECK(viaBfs.path.size() == viaAStar.path.size());
+}
+
+TEST_CASE("DistanceTable: shelves, sorters and walls are not vertices (answer is kUnreachable both ways)")
+{
+    const GridMap map = tinyMap();
+    DistanceTable table(map);
+    const CellIndex shelf = map.index({2, 3}), wall = map.index({0, 0}), sorter = map.index({4, 1}), home = map.index({1, 1});
+    CHECK(table.distance(shelf, home) == kUnreachable);
+    CHECK(table.distance(home, shelf) == kUnreachable);
+    CHECK(table.distance(wall, home) == kUnreachable);
+    CHECK(table.distance(sorter, home) == kUnreachable);
+    CHECK(table.distance(home, home) == 0);
+    CHECK(table.bfsRuns() <= 1);   // the rejected questions must not cost a BFS
+}
+
+TEST_CASE("RoutePlanner: plan() switches from backtracking to greedy exactly at exactLimit")
+{
+    const GridMap map = realMap();
+    DistanceTable dist(map);
+    RoutePlanner planner(map, dist);
+    std::mt19937 rng(21);
+    const CellIndex end = map.inductionCellFor(map.sorters()[0]);
+    bool tested = false;
+    for (int trial = 0; trial < 200 && !tested; ++trial) {
+        const std::vector<CellIndex> shelves = randomShelves(map, rng, 4);
+        const CellIndex start = map.homes()[static_cast<std::size_t>(trial) % 8];
+        const RoutePlan greedy = planner.greedy(start, shelves, end);
+        const RoutePlan exact = planner.backtracking(start, shelves, end);
+        if (greedy.length == exact.length) continue;               // need a trip where the two methods differ
+        CHECK(planner.plan(RoutingMethod::Backtracking, 4, start, shelves, end).length == exact.length);    // k == limit: exact
+        CHECK(planner.plan(RoutingMethod::Backtracking, 3, start, shelves, end).length == greedy.length);   // k  > limit: greedy
+        tested = true;
+    }
+    REQUIRE(tested);
+}
+
+TEST_CASE("GridMap: an unreachable dock is rejected, a reachable one is accepted")
+{
+    const std::string base = "WWWWWWWW\nWT....SW\nW.....RW\nWWW%WWWW\nWWWCWWWW\nWWWWWWWW\n";
+    std::string connected = base, cut = base;
+    connected[connected.find('%')] = '.';
+    cut[cut.find('%')] = 'W';
+    CHECK_THROWS(parseText(cut));
+    CHECK(parseText(connected).docks().size() == 1);
+}
+
+TEST_CASE("GridMap: sorter induction cells on the real map are the open floor cells the other modules rely on")
+{
+    const GridMap map = realMap();
+    // sorters at (1,16) (1,31) (19,1) (19,16): never a dock or a robot home, and always a plain floor cell next to the sorter
+    for (CellIndex r : map.sorters()) {
+        const CellIndex in = map.inductionCellFor(r);
+        REQUIRE(in != kNoCell);
+        CHECK(map.tile(in) == Tile::Floor);
+        CHECK(!map.isHome(in));
+        CHECK(manhattan(map, r, in) == 1);
+    }
+    CHECK(map.inductionCellFor(map.index({1, 16})) == map.index({2, 16}));
+    CHECK(map.inductionCellFor(map.index({1, 31})) == map.index({1, 30}));
+    CHECK(map.inductionCellFor(map.index({19, 1})) == map.index({19, 2}));
+    CHECK(map.inductionCellFor(map.index({19, 16})) == map.index({18, 16}));
+}

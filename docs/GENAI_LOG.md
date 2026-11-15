@@ -73,6 +73,32 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 - **Scores:** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 5/5
 - **Evidence:** Accuracy: test passes on the real code and fails on the merged-loop mutant, but the first mutant it proposed did not prove anything. Completeness: covers the all-or-nothing rule but left the `Money::parse("12.")` edge case untested. Clarity: comments explain each check, but faking low stock with a second catalogue needs a moment to understand. Relevance: targets the exact rule promised in the shop README (WP-B).
 
+## G4: Cross-check with a second tool, A* on a grid (WP-C)
+
+- **Date / member / work package:** 15 November 2026 / liyou / WP-C
+- **Tool and version:** ChatGPT (GPT-6)
+- **Prompt (summary):** "Implement A* on a 4-connected grid in C++ with a binary heap. Explain why the first time the goal is popped the path is optimal." (new chat, no project code shown)
+- **Output produced:** C++ A* with `std::priority_queue` and a Manhattan heuristic, a proof by contradiction, a note on consistency, a complexity table and exam tips.
+- **Verification performed:** Its code, saved unmodified, was compared with a plain BFS on 100,000 random grids (3x3 to 20x20, 0-45% walls) with ASan and UBSan on: 0 mismatches, including 16,106 unreachable cases, all reported "not found". Start = goal gives cost 0 and a one-cell path; a start or goal on a wall or out of bounds gives "not found". Compared line by line with `modules/navigation/Pathfinding.cpp`.
+- **Comparison with `Pathfinding.cpp`:** Same algorithm and heuristic; the tie-break is equivalent (larger g versus smaller h). Stale entries: ChatGPT skips entries with `g != gScore` (cells can be reopened), while the project uses a `closed[]` flag that relies on a consistent heuristic. ChatGPT rejects a start or goal on a wall; `aStarPath` does not check this (a path from a shelf cell is found). ChatGPT has no blocked-cell mask; the project has one, with the goal exempt. ChatGPT's path includes the start cell; the project's does not.
+- **Problems identified:** Step 3 of its proof does not state that a node on the optimal path is on the open list with its optimal g. It adds an unrequested exam-tips section and an offer of a practice exercise.
+- **Changes made:** None to its code. Finding for the project: add start/goal validation to `aStarPath` (planned, with a test first).
+- **Scores (ChatGPT):** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 4/5
+- **Scores (Claude, same prompt, project code):** Accuracy 5/5 · Completeness 4/5 · Clarity 5/5 · Relevance 5/5
+- **Evidence:** ChatGPT accuracy: 0 mismatches on 100,000 grids, but the proof's step 3 is loose. Completeness: handles the edge cases but has no blocked-cell mask. Clarity and relevance: long answer with unrequested extras. Claude: test "A*: same length as BFS on 500 random pairs of the real map" and the mutation runs pass; no start/goal validation (completeness); the header explains consistency and lazy deletion (clarity); it fits `GridMap` and `ds::MinHeap` (relevance).
+
+## G5: Extra tests and mutants for WP-C navigation
+
+- **Date / member / work package:** 15 November 2026 / liyou / WP-C
+- **Tool and version:** Claude (Anthropic), Sonnet 5.5
+- **Prompt (summary):** "Review the navigation module for bugs and guide me through verification, validation and experiments."
+- **Output produced:** A review of `modules/navigation`; 5 new test cases (blocked goal in `bfsPath`, `DistanceTable` rejecting non-walkable cells, the `exactLimit` boundary, an unreachable dock, sorter induction cells); 4 mutants for `tools/mutation_test.py`; a standalone probe program (not committed).
+- **Verification performed:** All tests pass (16/16 before, 21/21 after), including under ASan and UBSan and in the full run across all modules. `tools/mutation_test.py navigation`: 3 surprises before the new tests, 0 after. I also ran a "break it on purpose" change for every one of the 16 original tests (15 detected; the tiny-map A* test did not detect a 3x heuristic, but the real-map test did).
+- **Problems identified:** The tool first said the suite had 15 tests; it has 16. Its first suggested mutant for the invalid-maps test would have read an empty list (undefined behaviour) and was replaced with a safe one. It reported findings 1-5 (wrong line numbers in `GridMap` errors, `bfsDistances` ignoring the blocked-goal rule, the O key not respecting `maxObstacles`, k!*2^k understating shelves with three sides, `aStarPath` accepting a non-walkable start); these are not fixed in this PR.
+- **Changes made:** Appended the 5 tests to `modules/navigation/tests/test_navigation.cpp` and the 4 mutants to `tools/mutation_test.py`; no source changes.
+- **Scores:** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 5/5
+- **Evidence:** Accuracy: all tests pass and the mutation run goes from 3 surprises to 0, but two mistakes (the test count and the unsafe mutant). Completeness: closes three gaps, but findings 1-5 are only reported. Clarity: test names state the claim, and the section header explains why they were added. Relevance: three tests target the surviving mutants (exactLimit, DistanceTable, bfsPath); the dock and induction-cell tests pin behaviour the old tests did not check.
+
 ---
 ## Summary table (for the report)
 
@@ -81,3 +107,5 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 | G1 | | Claude | Complete code base | | | | | |
 | G2 | | | | | | | | |
 | G3 | Kavin | Claude | Shop checkout test (WP-B) | 4 | 4 | 4 | 5 | No code defects; added missing all-or-nothing checkout test |
+| G4 | liyou | ChatGPT | A* cross-check (WP-C) | 4 | 4 | 4 | 4 | Code correct (0 mismatches on 100,000 grids); validates start/goal, which `aStarPath` does not |
+| G5 | liyou | Claude | Extra tests and mutants (WP-C) | 4 | 4 | 4 | 5 | 3 test gaps closed: 21/21 tests, 0 mutation surprises |
