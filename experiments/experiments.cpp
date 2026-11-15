@@ -11,6 +11,7 @@
  *   experiments fulfilment    E7  trip filling: first-fit vs first-fit decreasing vs exact (WP-E)
  *   experiments trees         E8  BST vs LLRBT vs hash table: lookups vs insertion order (WP-B)
  *   experiments substring     E9  search box: linear scan vs suffix array (sorting + binary search) (WP-B)
+ *   experiments improve       E10  greedy vs greedy + 2-opt vs exact routes (WP-C)
  *   experiments all           everything
  *
  * Every experiment prints a summary table and writes a CSV file into
@@ -1179,6 +1180,140 @@ void experimentSubstring()
 
 } // namespace
 
+// ===========================================================================
+// E10 Route improvement: greedy vs greedy + local search (2-opt) vs exact (WP-C, navigation)
+//
+// Question: how much of greedy's gap to the optimal route can a cheap local search close,
+// and at what cost compared with the exact backtracking search?
+// This experiment is standalone: the local search below lives HERE, not in the navigation
+// module. It only uses the module's GridMap, DistanceTable and RoutePlanner as they are.
+// Same random trips as E4 (same seed and sampling), so the two tables can be compared.
+// ===========================================================================
+
+namespace {
+
+/// One stop of a route: which shelf (index into the trip's shelf list) and the cell the robot stands on.
+struct Stop {
+    int shelf;
+    CellIndex cell;
+};
+
+/// Moves needed for start -> every stop in order -> end.
+int routeLength(DistanceTable& dist, CellIndex start, const std::vector<Stop>& route, CellIndex end)
+{
+    int length = 0;
+    CellIndex position = start;
+    for (const Stop& s : route) {
+        length += dist.distance(position, s.cell);
+        position = s.cell;
+    }
+    return length + dist.distance(position, end);
+}
+
+/// Local search on a finished route. Two kinds of move, repeated until none of them shortens the route:
+///   2-opt  : reverse the part of the route between stop i and stop j;
+///   side   : visit one shelf from a different side.
+/// `evaluations` counts how many candidate routes were measured (the work done).
+std::vector<Stop> improveRoute(const GridMap& map, DistanceTable& dist, CellIndex start, std::vector<Stop> route, CellIndex end,
+                               const std::vector<CellIndex>& shelves, long& evaluations)
+{
+    int best = routeLength(dist, start, route, end);
+    bool improved = true;
+    while (improved) {
+        improved = false;
+        for (std::size_t i = 0; i < route.size(); ++i) {
+            for (std::size_t j = i + 1; j < route.size(); ++j) {   // 2-opt: reverse route[i..j]
+                std::reverse(route.begin() + static_cast<std::ptrdiff_t>(i), route.begin() + static_cast<std::ptrdiff_t>(j) + 1);
+                ++evaluations;
+                const int length = routeLength(dist, start, route, end);
+                if (length < best) {
+                    best = length;
+                    improved = true;
+                } else {
+                    std::reverse(route.begin() + static_cast<std::ptrdiff_t>(i), route.begin() + static_cast<std::ptrdiff_t>(j) + 1);   // undo
+                }
+            }
+        }
+        for (Stop& stop : route) {                                    // side change
+            const CellIndex original = stop.cell;
+            for (CellIndex other : map.accessCells(shelves[static_cast<std::size_t>(stop.shelf)])) {
+                if (other == original) continue;
+                stop.cell = other;
+                ++evaluations;
+                const int length = routeLength(dist, start, route, end);
+                if (length < best) {
+                    best = length;
+                    improved = true;
+                } else {
+                    stop.cell = original;                              // undo
+                    continue;
+                }
+                break;                                                 // keep the improvement, go to the next stop
+            }
+        }
+    }
+    return route;
+}
+
+} // namespace
+
+void experimentRouteImprovement()
+{
+    std::cout << "\nE10  ROUTE IMPROVEMENT: greedy vs greedy + 2-opt vs exact (same 100 trips per k as E4)\n";
+    const GridMap& map = warehouseMap();
+    DistanceTable dist(map);
+    RoutePlanner planner(map, dist);
+    std::ofstream csv = openCsv("e10_route_improvement.csv", "k,trial,greedy,two_opt,exact,two_opt_evaluations,greedy_us,two_opt_us,exact_us");
+    std::cout << std::right << std::setw(3) << "k" << std::setw(9) << "greedy" << std::setw(9) << "2-opt" << std::setw(9) << "exact"
+              << std::setw(11) << "gap greedy" << std::setw(11) << "gap 2-opt" << std::setw(13) << "2-opt=exact" << std::setw(12) << "evals 2-opt"
+              << std::setw(11) << "greedy us" << std::setw(10) << "2opt us" << std::setw(11) << "exact us" << '\n';
+    std::mt19937 rng(2026);   // same seed and sampling as experimentRouting(), so the trips are identical
+    for (int k = 1; k <= 10; ++k) {
+        double sumGreedy = 0, sumTwoOpt = 0, sumExact = 0, usGreedy = 0, usTwoOpt = 0, usExact = 0;
+        long sumEvals = 0;
+        int twoOptIsExact = 0;
+        for (int trial = 0; trial < 100; ++trial) {
+            std::vector<CellIndex> shelves = map.shelves();
+            std::shuffle(shelves.begin(), shelves.end(), rng);
+            shelves.resize(static_cast<std::size_t>(k));
+            const CellIndex start = map.homes()[static_cast<std::size_t>(trial) % map.homes().size()];
+            const CellIndex end = map.inductionCellFor(map.sorters()[static_cast<std::size_t>(trial) % map.sorters().size()]);
+
+            auto t0 = Clock::now();
+            const RoutePlan greedy = planner.greedy(start, shelves, end);
+            const double greedyUs = msSince(t0) * 1000.0;
+
+            t0 = Clock::now();
+            std::vector<Stop> route;
+            for (std::size_t i = 0; i < greedy.order.size(); ++i) route.push_back({greedy.order[i], greedy.access[i]});
+            long evals = 0;
+            route = improveRoute(map, dist, start, route, end, shelves, evals);
+            const int twoOptLength = routeLength(dist, start, route, end);
+            const double twoOptUs = greedyUs + msSince(t0) * 1000.0;   // includes building the greedy route it starts from
+
+            t0 = Clock::now();
+            const RoutePlan exact = planner.backtracking(start, shelves, end, true);
+            const double exactUs = msSince(t0) * 1000.0;
+
+            sumGreedy += greedy.length;
+            sumTwoOpt += twoOptLength;
+            sumExact += exact.length;
+            sumEvals += evals;
+            usGreedy += greedyUs;
+            usTwoOpt += twoOptUs;
+            usExact += exactUs;
+            if (twoOptLength == exact.length) ++twoOptIsExact;
+            csv << k << ',' << trial << ',' << greedy.length << ',' << twoOptLength << ',' << exact.length << ',' << evals << ','
+                << fmt(greedyUs, 2) << ',' << fmt(twoOptUs, 2) << ',' << fmt(exactUs, 2) << '\n';
+        }
+        std::cout << std::setw(3) << k << std::setw(9) << fmt(sumGreedy / 100, 1) << std::setw(9) << fmt(sumTwoOpt / 100, 1) << std::setw(9)
+                  << fmt(sumExact / 100, 1) << std::setw(10) << fmt(100.0 * (sumGreedy - sumExact) / sumExact, 1) << '%' << std::setw(10)
+                  << fmt(100.0 * (sumTwoOpt - sumExact) / sumExact, 1) << '%' << std::setw(10) << twoOptIsExact << "/100" << std::setw(12)
+                  << sumEvals / 100 << std::setw(11) << fmt(usGreedy / 100, 1) << std::setw(10) << fmt(usTwoOpt / 100, 1) << std::setw(11)
+                  << fmt(usExact / 100, 1) << '\n';
+    }
+}
+
 int main(int argc, char** argv)
 {
     std::vector<std::string> args(argv + 1, argv + argc);
@@ -1198,8 +1333,9 @@ int main(int argc, char** argv)
     if (all || which == "fulfilment") { experimentFulfilment(); ran = true; }
     if (all || which == "trees") { experimentTrees(); ran = true; }
     if (all || which == "substring") { experimentSubstring(); ran = true; }
+    if (all || which == "improve") { experimentRouteImprovement(); ran = true; }
     if (!ran) {
-        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|fulfilment|trees|substring|all] [--out DIR]\n";
+        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|fulfilment|trees|substring|improve|all] [--out DIR]\n";
         return 2;
     }
     return 0;
