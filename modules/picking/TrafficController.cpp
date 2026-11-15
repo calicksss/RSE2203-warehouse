@@ -95,8 +95,7 @@ bool TrafficController::nudgeParkedRobot(int parked, int mover, const std::vecto
 bool TrafficController::sidestep(int i, int blocker, PickingRobot& robot, const ObstacleManager& obstacles, Metrics& metrics)
 {
     // Free neighbour cells. Prefer ones the blocking robot does NOT need next
-    // (stepping into its path would just block it again, e.g. backwards along
-    // a corridor instead of into a side pocket).
+    // (stepping into its path would just block it again, e.g. backwards along a corridor instead of into a side pocket).
     const std::vector<CellIndex> blockerPath = plannedPath(blocker);
     CellIndex nb[4];
     const int n = map_.neighbours(robot.cell(), nb);
@@ -111,6 +110,7 @@ bool TrafficController::sidestep(int i, int blocker, PickingRobot& robot, const 
     std::uniform_int_distribution<std::size_t> pick(0, choices.size() - 1);   // random: breaks symmetric jams
     move(i, robot, choices[pick(rng_)], metrics);
     plans_[static_cast<std::size_t>(i)].path.clear();                         // plan again from the new cell
+    plans_[static_cast<std::size_t>(i)].next = 0;     // reset cursor to maintain Plan invariants (avoiding leaving a dirty cursor offset in memory)
     ++metrics.sidesteps;
     return true;
 }
@@ -151,6 +151,7 @@ void TrafficController::step(const std::vector<PickingRobot*>& pickers, const Ob
             if (!replan(i, robot, obstacles, false, metrics)) {
                 robot.recordWait();
                 ++metrics.waits;
+                metrics.longestWait = std::max(metrics.longestWait, robot.waitStreak()); // record peak wait when blocked by obstacles
                 continue;
             }
         }
@@ -190,9 +191,13 @@ void TrafficController::step(const std::vector<PickingRobot*>& pickers, const Ob
         ++metrics.waits;
         metrics.longestWait = std::max(metrics.longestWait, robot.waitStreak());
 
+        // Re-check next cell and blocker: if Rule 2d found an A* detour, plan.path was replaced and the next cell may have changed.
+        const CellIndex currentNext = plan.path[plan.next];
+        const int currentBlocker = occupant_[static_cast<std::size_t>(currentNext)];
+
         // Both robots are waiting for each other (a jam): one random step aside breaks it.
-        const bool blockerAlsoStuck = blocker != -1 && pickers[static_cast<std::size_t>(blocker)]->waitStreak() > 0;
-        if (waited >= config_.sidestepAfterWaits && blockerAlsoStuck) sidestep(i, blocker, robot, obstacles, metrics);
+        const bool blockerAlsoStuck = currentBlocker != -1 && pickers[static_cast<std::size_t>(currentBlocker)]->waitStreak() > 0;
+        if (waited >= config_.sidestepAfterWaits && blockerAlsoStuck) sidestep(i, currentBlocker, robot, obstacles, metrics);
     }
 }
 
