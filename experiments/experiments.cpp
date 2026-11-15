@@ -9,6 +9,7 @@
  *   experiments traffic       E5  robots 1..8: throughput and congestion              (WP-D)
  *   experiments policies      E6  routing x robot-choice policies, whole warehouse    (WP-E)
  *   experiments fulfilment    E7  trip filling: first-fit vs first-fit decreasing vs exact (WP-E)
+ *   experiments trees         E8  BST vs LLRBT vs hash table: lookups vs insertion order (WP-B)
  *   experiments all           everything
  *
  * Every experiment prints a summary table and writes a CSV file into
@@ -584,6 +585,359 @@ void experimentFulfilment()
     }
 }
 
+// ===========================================================================
+// E8 Lookup structures: tree shape vs insertion order (Lectures 7 and 8)   (WP-B extension)
+// ===========================================================================
+//
+// Question: the catalogue is looked up by key (product name or SKU). Lecture 8 says the shape of a
+// plain binary search tree "depends on order of insertion", so search cost per lookup is 1 + depth.
+// Does insertion order matter, and does a self-balancing tree (left-leaning red-black tree, LLRBT)
+// or a hash table with separate chaining (Lecture 7) remove the problem?
+//
+// Cost measure: key comparisons per successful lookup (one three-way comparison per node or chain
+// entry visited, which is the "1 + depth" of the lecture). Counts do not depend on the computer.
+// All structures keep their nodes in a std::vector and link them by index, so even a degenerate
+// tree of 10,000 nodes needs no deep recursion and no recursive destructor.
+
+/// Plain (unbalanced) binary search tree, Lecture 8 slides 6-13.
+template <typename Key>
+class PlainBst {
+public:
+    /// Inserts `key` (ignored if present). Returns the number of nodes compared on the way down.
+    long insert(const Key& key)
+    {
+        if (nodes_.empty()) {
+            nodes_.push_back({key, -1, -1});
+            return 0;
+        }
+        long cmp = 0;
+        int cur = 0, depth = 0;
+        for (;;) {
+            ++cmp;
+            ++depth;
+            Node& n = nodes_[static_cast<std::size_t>(cur)];
+            int* link = nullptr;
+            if (key < n.key) link = &n.left;
+            else if (n.key < key) link = &n.right;
+            else return cmp;                      // already present
+            if (*link == -1) {
+                const int fresh = static_cast<int>(nodes_.size());
+                *link = fresh;                    // set the link first: push_back may move the vector
+                nodes_.push_back({key, -1, -1});
+                height_ = std::max(height_, depth);
+                return cmp;
+            }
+            cur = *link;
+        }
+    }
+    /// Comparisons for a lookup of `key` (= 1 + depth of the node when it is present).
+    long search(const Key& key) const
+    {
+        long cmp = 0;
+        int cur = nodes_.empty() ? -1 : 0;
+        while (cur != -1) {
+            ++cmp;
+            const Node& n = nodes_[static_cast<std::size_t>(cur)];
+            if (key < n.key) cur = n.left;
+            else if (n.key < key) cur = n.right;
+            else return cmp;
+        }
+        return -cmp;                              // not found (never happens in this experiment)
+    }
+    int height() const { return nodes_.empty() ? -1 : height_; }   // edges on the longest path; leaf = 0
+    std::size_t size() const { return nodes_.size(); }
+
+private:
+    struct Node { Key key; int left, right; };
+    std::vector<Node> nodes_;
+    int height_ = 0;
+};
+
+/// Left-leaning red-black tree, Lecture 8 slides 32-47: rotate left, rotate right, flip colours.
+template <typename Key>
+class LeftLeaningRbt {
+public:
+    long insert(const Key& key)
+    {
+        long cmp = 0;
+        root_ = put(root_, key, cmp);
+        nodes_[static_cast<std::size_t>(root_)].red = false;   // the root is always black
+        return cmp;
+    }
+    long search(const Key& key) const   // identical to the plain BST: colour is ignored (slide 35)
+    {
+        long cmp = 0;
+        int cur = root_;
+        while (cur != -1) {
+            ++cmp;
+            const Node& n = nodes_[static_cast<std::size_t>(cur)];
+            if (key < n.key) cur = n.left;
+            else if (n.key < key) cur = n.right;
+            else return cmp;
+        }
+        return -cmp;
+    }
+    int height() const { return height(root_); }
+    std::size_t size() const { return nodes_.size(); }
+    /// Slide 33: no right-leaning red link, no two reds in a row, same number of black links on every path.
+    bool valid() const { return !isRed(root_) && blackHeight(root_) >= 0; }
+
+private:
+    struct Node { Key key; int left, right; bool red; };
+    std::vector<Node> nodes_;
+    int root_ = -1;
+
+    Node& at(int i) { return nodes_[static_cast<std::size_t>(i)]; }
+    const Node& at(int i) const { return nodes_[static_cast<std::size_t>(i)]; }
+    bool isRed(int i) const { return i != -1 && at(i).red; }
+
+    int rotateLeft(int h)    // orient a right-leaning red link to lean left (slide 38)
+    {
+        const int x = at(h).right;
+        at(h).right = at(x).left;
+        at(x).left = h;
+        at(x).red = at(h).red;
+        at(h).red = true;
+        return x;
+    }
+    int rotateRight(int h)   // slide 39
+    {
+        const int x = at(h).left;
+        at(h).left = at(x).right;
+        at(x).right = h;
+        at(x).red = at(h).red;
+        at(h).red = true;
+        return x;
+    }
+    void flipColors(int h)   // split a temporary 4-node (slide 40)
+    {
+        at(h).red = !at(h).red;
+        at(at(h).left).red = !at(at(h).left).red;
+        at(at(h).right).red = !at(at(h).right).red;
+    }
+    int put(int h, const Key& key, long& cmp)
+    {
+        if (h == -1) {
+            nodes_.push_back({key, -1, -1, true});   // new links are red
+            return static_cast<int>(nodes_.size()) - 1;
+        }
+        ++cmp;
+        if (key < at(h).key) {
+            const int child = put(at(h).left, key, cmp);
+            at(h).left = child;
+        } else if (at(h).key < key) {
+            const int child = put(at(h).right, key, cmp);
+            at(h).right = child;
+        }
+        // The same three lines fix every case (slide 45).
+        if (isRed(at(h).right) && !isRed(at(h).left)) h = rotateLeft(h);
+        if (isRed(at(h).left) && isRed(at(at(h).left).left)) h = rotateRight(h);
+        if (isRed(at(h).left) && isRed(at(h).right)) flipColors(h);
+        return h;
+    }
+    int height(int h) const { return h == -1 ? -1 : 1 + std::max(height(at(h).left), height(at(h).right)); }
+    int blackHeight(int h) const   // -1 when some invariant is broken
+    {
+        if (h == -1) return 0;
+        if (isRed(at(h).right)) return -1;
+        if (isRed(h) && isRed(at(h).left)) return -1;
+        const int l = blackHeight(at(h).left), r = blackHeight(at(h).right);
+        if (l < 0 || r < 0 || l != r) return -1;
+        return l + (isRed(h) ? 0 : 1);
+    }
+};
+
+/// Hash table with separate chaining, division method h(k) = k mod m with m prime (Lecture 7 slides 13-14).
+template <typename Key, typename Hash>
+class ChainedHashTable {
+public:
+    explicit ChainedHashTable(std::size_t buckets) : chains_(buckets) {}
+    /// Inserts at the front of the chain (slide 14). Returns the chain entries compared to rule out a duplicate.
+    long insert(const Key& key)
+    {
+        std::vector<Key>& chain = chains_[Hash()(key) % chains_.size()];
+        long cmp = 0;
+        for (const Key& k : chain) {
+            ++cmp;
+            if (k == key) return cmp;
+        }
+        chain.insert(chain.begin(), key);
+        return cmp;
+    }
+    long search(const Key& key) const
+    {
+        const std::vector<Key>& chain = chains_[Hash()(key) % chains_.size()];
+        long cmp = 0;
+        for (const Key& k : chain) {
+            ++cmp;
+            if (k == key) return cmp;
+        }
+        return -cmp;
+    }
+
+private:
+    std::vector<std::vector<Key>> chains_;
+};
+
+struct IntHash { std::size_t operator()(int k) const { return static_cast<std::size_t>(k); } };
+struct StringHash {   // polynomial hash, written out so that every compiler gives the same buckets
+    std::size_t operator()(const std::string& s) const
+    {
+        std::size_t h = 0;
+        for (unsigned char c : s) h = h * 31 + c;
+        return h;
+    }
+};
+
+std::size_t primeAtLeast(std::size_t x)
+{
+    auto isPrime = [](std::size_t v) {
+        if (v < 2) return false;
+        for (std::size_t d = 2; d * d <= v; ++d)
+            if (v % d == 0) return false;
+        return true;
+    };
+    while (!isPrime(x)) ++x;
+    return x;
+}
+
+/// Fisher-Yates shuffle driven by raw mt19937 output (std::shuffle is not portable across standard libraries).
+template <typename T>
+void portableShuffle(std::vector<T>& v, unsigned seed)
+{
+    std::mt19937 rng(seed);
+    for (std::size_t i = v.size(); i > 1; --i) std::swap(v[i - 1], v[rng() % i]);
+}
+
+/// Insertion order that builds a perfectly balanced BST: the median first, then the medians of each half (level by level).
+template <typename T>
+std::vector<T> balancedOrder(const std::vector<T>& sorted)
+{
+    std::vector<T> order;
+    std::vector<std::pair<int, int>> queue{{0, static_cast<int>(sorted.size()) - 1}};
+    for (std::size_t head = 0; head < queue.size(); ++head) {
+        const auto [lo, hi] = queue[head];
+        if (lo > hi) continue;
+        const int mid = lo + (hi - lo) / 2;
+        order.push_back(sorted[static_cast<std::size_t>(mid)]);
+        queue.push_back({lo, mid - 1});
+        queue.push_back({mid + 1, hi});
+    }
+    return order;
+}
+
+/// Builds the four structures from `insertionOrder`, looks every key up once, writes four CSV rows.
+template <typename Key, typename Hash>
+void measureLookups(std::ofstream& csv, const std::string& dataset, const std::string& order, unsigned seed,
+                    const std::vector<Key>& insertionOrder, const std::vector<Key>& sortedKeys, bool print)
+{
+    const int n = static_cast<int>(insertionOrder.size());
+    struct Row { std::string structure; std::string height; double avg; long max; long build; };
+    std::vector<Row> rows;
+    auto lookupAll = [&](auto&& search, long& maxCmp) {
+        long total = 0;
+        maxCmp = 0;
+        for (const Key& k : sortedKeys) {
+            const long c = search(k);
+            if (c <= 0) std::cout << "  !! key not found in " << dataset << '/' << order << '\n';
+            total += c;
+            maxCmp = std::max(maxCmp, c);
+        }
+        return double(total) / n;
+    };
+
+    {   // plain BST
+        PlainBst<Key> t;
+        long build = 0, maxCmp = 0;
+        for (const Key& k : insertionOrder) build += t.insert(k);
+        const double avg = lookupAll([&](const Key& k) { return t.search(k); }, maxCmp);
+        if (maxCmp != t.height() + 1) std::cout << "  !! BST: max comparisons is not height + 1\n";
+        rows.push_back({"BST", std::to_string(t.height()), avg, maxCmp, build});
+    }
+    {   // left-leaning red-black tree
+        LeftLeaningRbt<Key> t;
+        long build = 0, maxCmp = 0;
+        for (const Key& k : insertionOrder) build += t.insert(k);
+        const double avg = lookupAll([&](const Key& k) { return t.search(k); }, maxCmp);
+        if (!t.valid() || t.size() != insertionOrder.size()) std::cout << "  !! LLRBT invariant broken (" << dataset << '/' << order << ")\n";
+        if (t.height() > 2 * static_cast<int>(std::floor(std::log2(n))) + 1) std::cout << "  !! LLRBT taller than 2 lg n\n";
+        rows.push_back({"LLRBT", std::to_string(t.height()), avg, maxCmp, build});
+    }
+    {   // hash table, load factor about 4 (Lecture 7 slide 28 keeps k/m between 2 and 8)
+        ChainedHashTable<Key, Hash> t(primeAtLeast(static_cast<std::size_t>(std::max(1, n / 4))));
+        long build = 0, maxCmp = 0;
+        for (const Key& k : insertionOrder) build += t.insert(k);
+        const double avg = lookupAll([&](const Key& k) { return t.search(k); }, maxCmp);
+        rows.push_back({"hash-chaining", "", avg, maxCmp, build});
+    }
+    {   // sorted array + binary search; "build" is the merge-sort cost of sorting the incoming keys
+        std::vector<Key> a = insertionOrder;
+        long build = 0, maxCmp = 0;
+        mergeSort(a, [&build](const Key& x, const Key& y) { ++build; return x < y; });
+        const double avg = lookupAll(
+            [&](const Key& k) {
+                long c = 0;
+                const int idx = binarySearch(a, k, [&c](const Key& element, const Key& key) { ++c; return element < key ? -1 : (key < element ? 1 : 0); });
+                return idx >= 0 ? c : -c;
+            },
+            maxCmp);
+        rows.push_back({"binary-search-array", "", avg, maxCmp, build});
+    }
+
+    for (const Row& r : rows) {
+        csv << dataset << ',' << r.structure << ',' << order << ',' << n << ',' << seed << ',' << r.height << ',' << fmt(r.avg, 3) << ',' << r.max << ',' << r.build << '\n';
+        if (print)
+            std::cout << std::left << std::setw(11) << dataset << std::setw(16) << order << std::setw(21) << r.structure << std::right << std::setw(8) << n
+                      << std::setw(9) << (r.height.empty() ? "-" : r.height) << std::setw(11) << fmt(r.avg, 2) << std::setw(9) << r.max << std::setw(14) << r.build << '\n';
+    }
+}
+
+void experimentTrees()
+{
+    std::cout << "\nE8  LOOKUP STRUCTURES: BST vs LLRBT vs hash table vs sorted array (comparisons per successful lookup)\n";
+    std::ofstream csv = openCsv("e8_trees.csv", "dataset,structure,order,n,seed,height,avg_cmp,max_cmp,build_cmp");
+    std::cout << std::left << std::setw(11) << "dataset" << std::setw(16) << "insertion order" << std::setw(21) << "structure" << std::right << std::setw(8) << "n"
+              << std::setw(9) << "height" << std::setw(11) << "avg cmp" << std::setw(9) << "max cmp" << std::setw(14) << "build cmp" << '\n';
+
+    // Part A: synthetic SKU numbers 10000, 10007, 10014, ... in five insertion orders.
+    const std::vector<int> sizes{100, 200, 500, 1000, 2000, 5000, 10000};
+    for (int n : sizes) {
+        std::vector<int> sorted(static_cast<std::size_t>(n));
+        for (int i = 0; i < n; ++i) sorted[static_cast<std::size_t>(i)] = 10000 + 7 * i;
+        const bool print = (n == 10000);
+
+        for (unsigned seed = 1; seed <= 10; ++seed) {   // random order: ten different seeds
+            std::vector<int> v = sorted;
+            portableShuffle(v, seed);
+            measureLookups<int, IntHash>(csv, "sku", "random", seed, v, sorted, print && seed == 1);
+        }
+        measureLookups<int, IntHash>(csv, "sku", "ascending", 0, sorted, sorted, print);
+        std::vector<int> desc(sorted.rbegin(), sorted.rend());
+        measureLookups<int, IntHash>(csv, "sku", "descending", 0, desc, sorted, print);
+        std::vector<int> nearly = sorted;   // sorted batches with 1% of the entries swapped (late corrections)
+        std::mt19937 rng(7);
+        for (int s = 0; s < std::max(1, n / 100); ++s) std::swap(nearly[rng() % nearly.size()], nearly[rng() % nearly.size()]);
+        measureLookups<int, IntHash>(csv, "sku", "nearly-sorted", 7, nearly, sorted, print);
+        measureLookups<int, IntHash>(csv, "sku", "median-first", 0, balancedOrder(sorted), sorted, print);
+    }
+
+    // Part B: the real 91 product names from data/Products.txt.
+    std::vector<std::string> names;
+    for (const Product& p : warehouseCatalogue().all()) names.push_back(p.name);
+    std::vector<std::string> alpha = names;
+    std::sort(alpha.begin(), alpha.end());
+    if (std::adjacent_find(alpha.begin(), alpha.end()) != alpha.end()) std::cout << "  !! duplicate product names\n";
+    measureLookups<std::string, StringHash>(csv, "catalogue", "file-order", 0, names, alpha, true);
+    measureLookups<std::string, StringHash>(csv, "catalogue", "alphabetical", 0, alpha, alpha, true);
+    std::vector<std::string> revAlpha(alpha.rbegin(), alpha.rend());
+    measureLookups<std::string, StringHash>(csv, "catalogue", "reverse-alpha", 0, revAlpha, alpha, true);
+    for (unsigned seed = 1; seed <= 10; ++seed) {
+        std::vector<std::string> v = names;
+        portableShuffle(v, seed);
+        measureLookups<std::string, StringHash>(csv, "catalogue", "random", seed, v, alpha, seed == 1);
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -603,8 +957,9 @@ int main(int argc, char** argv)
     if (all || which == "traffic") { experimentTraffic(); ran = true; }
     if (all || which == "policies") { experimentPolicies(); ran = true; }
     if (all || which == "fulfilment") { experimentFulfilment(); ran = true; }
+    if (all || which == "trees") { experimentTrees(); ran = true; }
     if (!ran) {
-        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|fulfilment|all] [--out DIR]\n";
+        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|fulfilment|trees|all] [--out DIR]\n";
         return 2;
     }
     return 0;

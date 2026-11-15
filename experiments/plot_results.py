@@ -192,6 +192,79 @@ def plot_fulfilment(rows, out):
     save(fig, out, "e7_fulfilment.png")
 
 
+def plot_trees(rows, out):
+    """E8: lookup cost of BST, LLRBT, hash table and sorted array for different insertion orders."""
+
+    def mean(vals):
+        vals = list(vals)
+        return sum(vals) / len(vals)
+
+    def series(dataset, structure, order, col="avg_cmp"):
+        by_n = defaultdict(list)
+        for r in rows:
+            if r["dataset"] == dataset and r["structure"] == structure and r["order"] == order:
+                by_n[int(r["n"])].append(float(r[col]))
+        return sorted(by_n), [mean(by_n[n]) for n in sorted(by_n)]
+
+    # Chart 1: average comparisons per lookup against n (log-log), synthetic SKUs
+    fig, ax = plt.subplots(figsize=(8, 4.8))
+    lines = [("BST", "ascending", "BST, ascending / descending order", SERIES[3], "-"),
+             ("BST", "nearly-sorted", "BST, nearly sorted (1% swapped)", SERIES[1], "-"),
+             ("BST", "random", "BST, random order (10 seeds)", SERIES[0], "-"),
+             ("LLRBT", "ascending", "LLRBT, ascending order (under the array line)", SERIES[2], "-"),
+             ("hash-chaining", "random", "hash table, load factor 4", SERIES[6], "-"),
+             ("binary-search-array", "random", "sorted array + binary search", INK_SOFT, "--")]
+    for structure, order, label, colour, ls in lines:
+        xs, ys = series("sku", structure, order)
+        ax.plot(xs, ys, marker="o", markersize=4, linewidth=2, linestyle=ls, color=colour, label=label)
+    ns = sorted({int(r["n"]) for r in rows if r["dataset"] == "sku"})
+    ax.plot(ns, [(n + 1) / 2 for n in ns], linewidth=1.2, linestyle=":", color=INK, label="(n + 1) / 2")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    style(ax, "E8  Comparisons per successful lookup (log-log)", "n (keys stored)", "comparisons (mean)")
+    ax.legend(frameon=False, fontsize=8, loc="upper left")
+    save(fig, out, "e8_lookup_comparisons.png")
+
+    # Chart 2: tree height at the largest n for each insertion order
+    n_big = max(int(r["n"]) for r in rows if r["dataset"] == "sku")
+    orders = ["random", "ascending", "descending", "nearly-sorted", "median-first"]
+    fig, ax = plt.subplots(figsize=(8, 4.6))
+    width = 0.38
+    for i, (structure, colour) in enumerate([("BST", SERIES[0]), ("LLRBT", SERIES[1])]):
+        heights = [mean(int(r["height"]) for r in rows if r["dataset"] == "sku" and r["structure"] == structure
+                        and r["order"] == o and int(r["n"]) == n_big) for o in orders]
+        bars = ax.bar([x + (i - 0.5) * (width + 0.02) for x in range(len(orders))], heights, width, color=colour, label=structure)
+        for bar in bars:
+            ax.annotate(f"{bar.get_height():.0f}", (bar.get_x() + bar.get_width() / 2, bar.get_height()), xytext=(0, 3),
+                        textcoords="offset points", ha="center", fontsize=9, color=INK)
+    ax.axhline(math.floor(math.log2(n_big)), linestyle="--", linewidth=1.3, color=INK_SOFT, label="floor(lg n): best possible")
+    ax.axhline(2 * math.log2(n_big), linestyle=":", linewidth=1.3, color=INK, label="2 lg n: LLRBT worst-case bound")
+    ax.set_yscale("log")
+    ax.set_xticks(range(len(orders)))
+    ax.set_xticklabels(orders)
+    style(ax, f"E8  Tree height by insertion order (n = {n_big})", "insertion order", "height in edges (log scale)")
+    ax.legend(frameon=False, fontsize=8, loc="upper right")
+    save(fig, out, "e8_tree_height.png")
+
+    # Chart 3: the real catalogue (91 product names)
+    cat_orders = ["file-order", "alphabetical", "reverse-alpha", "random"]
+    structures = [("BST", SERIES[0]), ("LLRBT", SERIES[1]), ("hash-chaining", SERIES[2]), ("binary-search-array", SERIES[3])]
+    fig, ax = plt.subplots(figsize=(8.5, 4.6))
+    width = 0.2
+    for i, (structure, colour) in enumerate(structures):
+        vals = [mean(float(r["avg_cmp"]) for r in rows if r["dataset"] == "catalogue" and r["structure"] == structure and r["order"] == o)
+                for o in cat_orders]
+        bars = ax.bar([x + (i - 1.5) * (width + 0.01) for x in range(len(cat_orders))], vals, width, color=colour, label=structure)
+        for bar in bars:
+            ax.annotate(f"{bar.get_height():.1f}", (bar.get_x() + bar.get_width() / 2, bar.get_height()), xytext=(0, 3),
+                        textcoords="offset points", ha="center", fontsize=8, color=INK)
+    ax.set_xticks(range(len(cat_orders)))
+    ax.set_xticklabels(["file order\n(Products.txt)", "alphabetical", "reverse\nalphabetical", "random\n(10 seeds)"])
+    style(ax, "E8  Product-name lookups, 91 catalogue entries", "order in which the names are inserted", "comparisons per lookup (mean)")
+    ax.legend(frameon=False, fontsize=8, loc="upper right")
+    save(fig, out, "e8_catalogue.png")
+
+
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     parser = argparse.ArgumentParser()
@@ -200,7 +273,8 @@ def main():
     out = os.path.join(args.folder, "plots")
     os.makedirs(out, exist_ok=True)
     jobs = [("e1_sorting.csv", plot_sorting), ("e3_pathfinding.csv", plot_pathfinding), ("e4_routing.csv", plot_routing),
-            ("e5_traffic.csv", plot_traffic), ("e6_policies.csv", plot_policies), ("e7_fulfilment.csv", plot_fulfilment)]
+            ("e5_traffic.csv", plot_traffic), ("e6_policies.csv", plot_policies), ("e7_fulfilment.csv", plot_fulfilment),
+            ("e8_trees.csv", plot_trees)]
     for name, fn in jobs:
         path = os.path.join(args.folder, name)
         if os.path.exists(path):
