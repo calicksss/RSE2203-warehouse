@@ -99,7 +99,7 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 - **Scores:** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 5/5
 - **Evidence:** Accuracy: all tests pass and the mutation run goes from 3 surprises to 0, but two mistakes (the test count and the unsafe mutant). Completeness: closes three gaps, but findings 1-5 are only reported. Clarity: test names state the claim, and the section header explains why they were added. Relevance: three tests target the surviving mutants (exactLimit, DistanceTable, bfsPath); the dock and induction-cell tests pin behaviour the old tests did not check.
 
-## G6: E10 route-improvement experiment (greedy + 2-opt), WP-C
+## G7: E10 route-improvement experiment (greedy + 2-opt), WP-C
 
 - **Date / member / work package:** 16 November 2026 / liyou / WP-C (experiments)
 - **Tool and version:** Claude (Anthropic), Claude Code, Sonnet 5.5
@@ -135,3 +135,4 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 | G3 | Kavin | Claude | Shop checkout test (WP-B) | 4 | 4 | 4 | 5 | No code defects; added missing all-or-nothing checkout test |
 | G4 | liyou | ChatGPT | A* cross-check (WP-C) | 4 | 4 | 4 | 4 | Code correct (0 mismatches on 100,000 grids); validates start/goal, which `aStarPath` does not |
 | G5 | liyou | Claude | Extra tests and mutants (WP-C) | 4 | 4 | 4 | 5 | 3 test gaps closed: 21/21 tests, 0 mutation surprises |
+| G7 | liyou | Claude | E10: greedy + 2-opt vs exact routes | 4 | 4 | 4 | 5 | 2-opt cuts greedy's gap from 25.9% to 10.3% at k=10 in microseconds, but is exact in only 26/100 trips |
