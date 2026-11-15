@@ -128,6 +128,10 @@ TEST_CASE("Battery: stays between 0 and 100")
     CHECK(b.isEmpty());
     b.charge(30.0);
     CHECK(b.percent() == 30.0);
+    b.drain(-10.0);  // negative drain should not increase battery
+    CHECK(b.percent() == 30.0);
+    b.charge(-10.0); // negative charge should not decrease battery
+    CHECK(b.percent() == 30.0);
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +161,39 @@ TEST_CASE("PickingRobot: goes shelf -> shelf -> sorter -> home and reports picks
     CHECK(r.state() == PickingRobot::State::Idle);
     CHECK(r.cell() == r.home());
     CHECK(r.cargo().empty());
+    CHECK(r.tripId() == 0);
+}
+TEST_CASE("PickingRobot: argument validation and state encapsulation")
+{
+    World w(parseMap(kTiny), {});
+    PickingRobot& r = w.add(w.map.index({1, 1}));
+    std::vector<PickStop> stops{stopAt(w.map, {2, 3}, {1, 3}, 1)};
+    // Invalid arguments
+    CHECK_THROWS(r.assignTrip({}, w.map.index({3, 1}), 0, 1));
+    CHECK_THROWS(r.assignTrip(stops, kNoCell, 0, 1));
+    CHECK_THROWS(r.assignTrip(stops, w.map.index({3, 1}), -1, 1));
+    // DockingStation validation
+    DockingStation dock(0, w.map.index({1, 5}), 10.0);
+    r.assignTrip(stops, w.map.index({3, 1}), 0, 1);
+    CHECK_THROWS(r.assignTrip(stops, w.map.index({3, 1}), 0, 2)); // already busy
+    r.sendToDock(dock);
+    CHECK_THROWS(r.sendToDock(dock)); // already charging/heading to dock
+}
+TEST_CASE("PickingRobot: stranded robot with empty battery recovered by technician")
+{
+    World w(parseMap(kTiny), {});
+    PickingRobot& r = w.add(w.map.index({1, 1}));
+    r.moveTo(w.map.index({1, 2}), 100.0); // drain 100% battery
+    CHECK(r.battery() == 0.0);
+    CHECK(r.stateLabel() == "STRANDED");
+    CHECK(!r.wantsToMove());
+    
+    // Run for 35 ticks: after 30 ticks technician restores 25% battery, then robot moves home
+    const int ticks = w.run(60);
+    CHECK(ticks > 0);
+    CHECK(r.battery() > 0.0);
+    CHECK(r.cell() == r.home());
+    CHECK(r.state() == PickingRobot::State::Idle);
 }
 
 TEST_CASE("PickingRobot: a trip paused for charging resumes afterwards")

@@ -51,6 +51,7 @@ int PickingRobot::unitsOnTrip() const
 std::vector<CellIndex> PickingRobot::shelvesLeft() const
 {
     std::vector<CellIndex> shelves;
+    shelves.reserve(static_cast<std::size_t>(route_.size())); // pre-allocate to prevent vector reallocations
     route_.forEach([&shelves](const PickStop& stop) { shelves.push_back(stop.shelf); });
     return shelves;
 }
@@ -59,6 +60,7 @@ void PickingRobot::assignTrip(const std::vector<PickStop>& stops, CellIndex drop
 {
     if (!isAvailable()) throw std::logic_error(name() + ": assignTrip while busy");
     if (stops.empty()) throw std::invalid_argument(name() + ": a trip needs at least one shelf");
+    if (dropCell == kNoCell || sorterIndex < 0) throw std::invalid_argument(name() + ": invalid drop cell or sorter"); // Validate dropCell and sorterIndex to prevent invalid states
     for (const PickStop& stop : stops) route_.enqueue(stop);
     dropCell_ = dropCell;
     sorterIndex_ = sorterIndex;
@@ -103,8 +105,7 @@ void PickingRobot::tick(TickContext& ctx)
     movedThisTick_ = false;
     if (!moved && state_ != State::Charging) battery_.drain(ctx.config.drainPerIdleTick);
 
-    // Safety net: a flat battery would freeze this robot (and its orders) for
-    // ever, so we model a technician swapping the battery after 30 ticks.
+    // Safety net: a flat battery would freeze this robot (and its orders) forever, so we model a technician swapping the battery after 30 ticks.
     if (battery_.isEmpty()) {
         if (++stalledTicks_ >= 30) {
             battery_.charge(25.0);
@@ -148,6 +149,8 @@ void PickingRobot::tick(TickContext& ctx)
                                                 std::to_string(sorterIndex_ + 1));
                 cargo_.clear();
                 sorterIndex_ = -1;
+                dropCell_ = kNoCell; // clean up drop destination and trip ID upon delivery
+                tripId_ = 0;
                 state_ = State::Returning;
             }
             break;

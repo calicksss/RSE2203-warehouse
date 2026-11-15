@@ -285,6 +285,47 @@ def plot_route_improvement(rows, out):
     ax2.legend(frameon=False, fontsize=9)
     save(fig, out, "e10_route_improvement.png")
 
+def plot_substring(rows, out):
+    """E9: the search box. Linear scan vs suffix array (sorting + binary search)."""
+    rows = sorted(rows, key=lambda r: int(r["n"]))
+    ns = [int(r["n"]) for r in rows]
+
+    # Chart 1: work per search (log-log). Machine independent.
+    fig, ax = plt.subplots(figsize=(8, 4.8))
+    ax.plot(ns, ns, marker="o", markersize=4, linewidth=2, color=SERIES[1], label="linear scan: names examined (= n)")
+    ax.plot(ns, [float(r["sa_read_avg"]) for r in rows], marker="o", markersize=4, linewidth=2, color=SERIES[3],
+            label="suffix array: matching suffixes read out (~ number of results)")
+    ax.plot(ns, [float(r["sa_search_avg_cmp"]) for r in rows], marker="o", markersize=4, linewidth=2, color=SERIES[0],
+            label="suffix array: binary-search comparisons")
+    ax.plot(ns, [float(r["log2_suffixes"]) for r in rows], linewidth=1.2, linestyle=":", color=INK, label="log2(number of suffixes)")
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    style(ax, "E9  Search box: work per search (log-log)", "n (product names)", "names examined / comparisons per search")
+    ax.legend(frameon=False, fontsize=8, loc="upper left")
+    save(fig, out, "e9_work_per_search.png")
+
+    # Chart 2: time per search, with build cost and break-even. Machine dependent.
+    fig, ax = plt.subplots(figsize=(8.5, 4.8))
+    width = 0.26
+    versions = [("us_scan_lower_each_time", "A  scan, toLower every time (current)", SERIES[1]),
+                ("us_scan_prelowered", "B  scan, names lower-cased once", SERIES[3]),
+                ("us_suffix_array", "C  suffix array", SERIES[0])]
+    for i, (col, label, colour) in enumerate(versions):
+        vals = [float(r[col]) for r in rows]
+        bars = ax.bar([x + (i - 1) * (width + 0.02) for x in range(len(rows))], vals, width, color=colour, label=label)
+        for bar in bars:
+            ax.annotate(f"{bar.get_height():.1f}", (bar.get_x() + bar.get_width() / 2, bar.get_height()), xytext=(0, 2),
+                        textcoords="offset points", ha="center", fontsize=7, color=INK)
+    ax.set_yscale("log")
+    ax.set_xticks(range(len(rows)))
+    ax.set_xticklabels([f"n = {r['n']}\n({'real catalogue' if r['dataset'] == 'catalogue' else 'synthetic'})\n"
+                        f"build {float(r['sa_build_ms']):.1f} ms, +{float(r['sa_extra_kb']):.0f} KB\n"
+                        f"pays off after {r['breakeven_vs_A']} searches" for r in rows], fontsize=7)
+    style(ax, "E9  Time per search (median of 3 runs; depends on the computer)", "", "microseconds per search (log scale)")
+    ax.legend(frameon=False, fontsize=8, loc="upper left")
+    save(fig, out, "e9_time_per_search.png")
+
+
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     parser = argparse.ArgumentParser()
@@ -294,7 +335,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     jobs = [("e1_sorting.csv", plot_sorting), ("e3_pathfinding.csv", plot_pathfinding), ("e4_routing.csv", plot_routing),
             ("e5_traffic.csv", plot_traffic), ("e6_policies.csv", plot_policies), ("e7_fulfilment.csv", plot_fulfilment),
-            ("e8_trees.csv", plot_trees), ("e10_route_improvement.csv", plot_route_improvement)]
+            ("e8_trees.csv", plot_trees), ("e9_substring.csv", plot_substring), ("e10_route_improvement.csv", plot_route_improvement)]
     for name, fn in jobs:
         path = os.path.join(args.folder, name)
         if os.path.exists(path):

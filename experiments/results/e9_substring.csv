@@ -1,0 +1,5 @@
+dataset,n,queries,avg_matches,suffixes,scan_names_per_query,sa_search_avg_cmp,sa_search_max_cmp,log2_suffixes,sa_read_avg,sa_build_cmp,sa_build_ms,sa_extra_kb,us_scan_lower_each_time,us_scan_prelowered,us_suffix_array,breakeven_vs_A,breakeven_vs_B,all_results_equal
+catalogue,91,300,2.09,866,91,9.87,10,9.76,3.08,7377,0.34,6.8,11.49,1.60,0.71,31,379,yes
+synthetic,1000,300,80.46,17311,1000,14.11,15,14.08,81.67,221274,8.89,135.2,207.28,30.16,9.64,45,433,yes
+synthetic,10000,300,521.48,173930,10000,17.55,18,17.41,525.90,2806491,107.48,1358.8,2073.31,328.30,145.26,56,587,yes
+synthetic,100000,300,3776.17,1737480,100000,20.83,21,20.73,3830.63,33807927,1515.39,13574.1,21565.57,3396.54,1566.95,76,828,yes

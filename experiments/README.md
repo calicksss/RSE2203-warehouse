@@ -3,7 +3,7 @@
 A single program provides six experiments, each owned by one work package. Together they support the assessment component "experiment, analysis and insight discussion", which carries 20% of the team-project mark [B]. Citation keys refer to the *References* section of the root `README.md`.
 
 ```bash
-./build/experiments/experiments all            # or: sorting | search | pathfinding | routing | traffic | policies
+./build/experiments/experiments all            # or: sorting | search | pathfinding | routing | traffic | policies | substring
 python experiments/plot_results.py             # requires: pip install matplotlib
 ```
 
@@ -17,6 +17,7 @@ Results are written to `experiments/results/*.csv` and charts to `experiments/re
 | E4 | WP-C | How far from optimal is greedy routing, and what is the cost of an exact search [L5b]? | k = 1 to 10 shelves, 100 random trips each | Greedy routes are 6–26% longer than optimal for k ≥ 2; pruning reduces the search to about 7.4 thousand nodes, compared with about 2 million, at k = 7 |
 | E5 | WP-D | Does throughput increase linearly with the number of robots? | 80 orders, one to eight robots, ten seeds | Eight robots achieve a speed-up of 6.6 rather than 8; waiting increases with fleet size |
 | E6 | WP-E | Which scheduling decision has the greatest effect? | 80 orders, eight robots, 3 routing × 2 robot-selection methods, ten seeds | Backtracking with nearest-robot selection: 25% less distance than the baseline; robot selection alone: 0.4–3% less |
+| E9 | WP-B | Is a linear scan good enough for the shop's search box, or is a suffix array (sorting [L4] + binary search [L5a], Lecture 7) worth its cost? | Real catalogue (91 names) and synthetic names, n = 1,000 to 100,000; 300 three-letter searches each; scan vs scan with names lower-cased once vs suffix array | Identical results for every search. Suffix-array binary search uses about log₂ S comparisons (21 for 1.7 million suffixes) against n names for a scan; it stores one entry per character of every name (about 10–17 per name; 7 KB for the real catalogue) and repays its build after roughly 30–70 searches. For 91 products every version takes only microseconds |
 
 ## Recommended structure for each experiment in the report
 
