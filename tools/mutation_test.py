@@ -53,6 +53,15 @@ MUTANTS = [
      "weaker pruning bound: still exact, so only the 'far fewer nodes' test notices", "caught"),
     ("navigation", "modules/navigation/GridMap.cpp", "if (inBounds(q) && isWalkable(index(q))) out[n++] = index(q);",
      "if (inBounds(q)) out[n++] = index(q);", "robots may drive through walls and shelves", "caught"),
+    ("navigation", "modules/navigation/RoutePlanner.cpp", "if (static_cast<int>(shelves.size()) <= exactLimit)",
+     "if (static_cast<int>(shelves.size()) < exactLimit)", "off-by-one at the exact-search limit", "caught"),
+    ("navigation", "modules/navigation/DistanceTable.cpp", "    if (!map_.isWalkable(from) || !map_.isWalkable(to)) return kUnreachable;\n", "",
+     "DistanceTable no longer rejects non-walkable cells", "caught"),
+    ("navigation", "modules/navigation/Pathfinding.cpp", "            if (next != goal && isBlocked(blocked, next)) continue;\n            seen[",
+     "            if (isBlocked(blocked, next)) continue;\n            seen[", "bfsPath treats a blocked GOAL as impassable", "caught"),
+    ("navigation", "modules/navigation/RoutePlanner.cpp", "if (s.prune && newLength + dist_.distance(a, s.end) >= s.best.length) continue;",
+     "if (s.prune && newLength + dist_.distance(a, s.end) > s.best.length) continue;", "prune uses > not >= (still exact)", "equivalent"),
+
     # --- WP-D picking ----------------------------------------------------------------------------
     ("picking", "modules/picking/TrafficController.cpp", "if (blocker == -1 && !obstacles.isBlocked(next)) {",
      "if (!obstacles.isBlocked(next)) {", "robots drive into occupied cells (collisions)", "caught"),
