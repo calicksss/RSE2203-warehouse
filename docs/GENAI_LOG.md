@@ -99,6 +99,17 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 - **Scores:** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 5/5
 - **Evidence:** Accuracy: all tests pass and the mutation run goes from 3 surprises to 0, but two mistakes (the test count and the unsafe mutant). Completeness: closes three gaps, but findings 1-5 are only reported. Clarity: test names state the claim, and the section header explains why they were added. Relevance: three tests target the surviving mutants (exactLimit, DistanceTable, bfsPath); the dock and induction-cell tests pin behaviour the old tests did not check.
 
+## G6: E9 search-box experiment, linear scan vs suffix array (WP-B)
+
+- **Date / member / work package:** 16 November 2026 / Kavin / WP-B
+- **Tool and version:** Claude (Anthropic), Opus 5.5
+- **Prompt (summary):** "Design an experiment for my work package (shop) based on the course slides, to justify whether the current algorithm is good enough or can be improved. Compare algorithms at a second-order level." Slides L3, L4, L5a, L7 and L8 and `experiments/README.md` were provided.
+- **Output produced:** Experiment E9 (`experiments substring`): the search box compared as (A) the current scan, (B) a scan over names lower-cased once and (C) a suffix array (all suffixes sorted with `mergeSort`, then found by binary search). Chart function `plot_substring` and README rows.
+- **Verification performed:** The experiment checks that A, B and C return identical products for all 300 searches at every size ("same = yes"). Binary-search comparisons match log₂ S (9.9 vs 9.8 up to 20.8 vs 20.7). Re-run on my own machine (MinGW GCC 14.2): every count column identical to the AI's reference CSV; only timings differ. AddressSanitizer build reported no errors.
+- **Problems identified:** The first version contained a bug in the suffix comparison (a shared buffer made each suffix be compared with itself), so the searches returned wrong products. The built-in "same results" check detected it, and it was replaced by a direct `std::string::compare` on positions. Its first README text also overstated the memory per name (corrected to 10–17 entries per name).
+- **Changes made:** Fixed comparison as above; README memory figure corrected.
+- **Scores:** Accuracy 3/5 · Completeness 4/5 · Clarity 4/5 · Relevance 5/5
+- **Evidence:** Accuracy: the first version returned wrong products (all three searches disagreed) until the suffix comparison was fixed; the final version gives "same = yes" on all 300 searches at every size. Completeness: covers the search box end to end (correctness, comparisons, time, memory, break-even), but searches names only (not categories) and has no searches for text that matches nothing. Clarity: the header comment explains the question, the three versions and why a suffix array allows binary search; the table columns need the README to decode. Relevance: uses the course's mergeSort [L4] and binary search [L5a, L7] on the shop's own search function and answers "good enough or improve?" directly.
 ---
 ## Summary table (for the report)
 
@@ -109,3 +120,4 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 | G3 | Kavin | Claude | Shop checkout test (WP-B) | 4 | 4 | 4 | 5 | No code defects; added missing all-or-nothing checkout test |
 | G4 | liyou | ChatGPT | A* cross-check (WP-C) | 4 | 4 | 4 | 4 | Code correct (0 mismatches on 100,000 grids); validates start/goal, which `aStarPath` does not |
 | G5 | liyou | Claude | Extra tests and mutants (WP-C) | 4 | 4 | 4 | 5 | 3 test gaps closed: 21/21 tests, 0 mutation surprises |
+| G6 | Kavin | Claude | E9 search-box experiment (WP-B) | 3 | 4 | 4 | 5 | First version had a suffix-comparison bug caught by the results check; current search is good enough for 91 products |
