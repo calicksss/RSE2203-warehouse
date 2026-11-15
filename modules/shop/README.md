@@ -73,3 +73,4 @@ Suggested prompt: *"In C++, should money be stored as double? Show a safe way to
 ## Experiment owned by this work package
 
 - **E2** `experiments search`: mean and maximum comparisons for binary and linear search for n = 91 to 1,000,000, compared with log₂ n. The discussion should consider at what point the O(n log n) cost of sorting is recovered.
+- **E9** `experiments substring`: the search box. The current linear scan is compared with a scan over names lower-cased once and with a suffix array (all suffixes sorted with `mergeSort`, then found by binary search). Measures comparisons per search, time per search, build cost, extra memory and the break-even number of searches; checks that all three return the same products.
