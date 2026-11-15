@@ -61,10 +61,23 @@ The project brief [B] requires the use of at least two generative AI tools to as
 _(Entries G3, G4, … are added for each member. At least one entry per member is expected, and at least two different tools must be used across the team [B].)_
 
 ---
+## G3: Shop checkout all-or-nothing test (WP-B)
 
+- **Date / member / work package:** 15 November 2026 / Kavin / WP-B
+- **Tool and version:** Claude (Anthropic), Opus 5.5
+- **Prompt (summary):** "Review my work package (modules/shop) for bugs or issues and fix them."
+- **Output produced:** No defects found in the shop code. Identified that the all-or-nothing checkout rule had no test for the failure case, and wrote one (+30 lines in `tests/test_shop.cpp`).
+- **Verification performed:** Built and ran all tests (6/6 suites pass, MinGW GCC 14.2). Mutation: merging the stock check and deduction loops in `Shop::checkout` passes every old test but fails the new one. `tools/mutation_test.py shop`: 3/3 caught.
+- **Problems identified:** The first mutant it proposed (double deduction) was already caught by the old tests, so it did not prove the new test's value; replaced with a fairer mutant.
+- **Changes made:** None to the generated test.
+- **Scores:** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 5/5
+- **Evidence:** Accuracy: test passes on the real code and fails on the merged-loop mutant, but the first mutant it proposed did not prove anything. Completeness: covers the all-or-nothing rule but left the `Money::parse("12.")` edge case untested. Clarity: comments explain each check, but faking low stock with a second catalogue needs a moment to understand. Relevance: targets the exact rule promised in the shop README (WP-B).
+
+---
 ## Summary table (for the report)
 
 | Entry | Member | Tool | Task | Acc. | Comp. | Clar. | Rel. | Principal finding |
 |-------|--------|------|------|-----:|------:|------:|-----:|-------------------|
 | G1 | | Claude | Complete code base | | | | | |
 | G2 | | | | | | | | |
+| G3 | Kavin | Claude | Shop checkout test (WP-B) | 4 | 4 | 4 | 5 | No code defects; added missing all-or-nothing checkout test |

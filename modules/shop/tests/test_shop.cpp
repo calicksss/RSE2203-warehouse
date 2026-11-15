@@ -199,6 +199,36 @@ TEST_CASE("Shop: checkout creates an order, takes stock and empties the cart")
     CHECK(shop.history().size() == 1);
 }
 
+TEST_CASE("Shop: checkout is all-or-nothing when a later line is out of stock")
+{
+    // The shop's own catalogue has only 2 Milk. Filling the cart against a copy
+    // with more Milk simulates stock running out between "add to cart" and checkout.
+    Shop shop(smallCatalogue(), "");
+    std::istringstream in(
+        "Apple   1.50 0.20 10 1 1 Produce\n"
+        "Milk    3.45 1.00  9 1 2 Dairy\n"
+        "Rice   12.00 2.00  5 1 3 Dry_Goods\n"
+        "Bread   2.10 0.50  4 1 4\n");
+    const Catalogue moreMilk = Catalogue::parse(in, "test");
+    REQUIRE(shop.cart().add(moreMilk, 0, 3).ok);   // Apple: checked first, enough stock
+    REQUIRE(shop.cart().add(moreMilk, 1, 5).ok);   // Milk: 5 wanted, shop has only 2
+
+    const Shop::CheckoutResult r = shop.checkout(Priority::Standard);
+    CHECK(!r.ok);
+    CHECK(shop.catalogue().at(0).stock == 10);   // Apple stock NOT taken
+    CHECK(shop.catalogue().at(1).stock == 2);    // Milk stock unchanged
+    CHECK(shop.cart().quantityOf(0) == 3);       // cart kept so the user can fix it
+    CHECK(shop.cart().quantityOf(1) == 5);
+    CHECK(shop.history().empty());
+
+    // After fixing the cart, the next order still gets id 1 (no id was used up).
+    shop.cart().remove(shop.catalogue(), 1, 3);
+    const Shop::CheckoutResult ok = shop.checkout(Priority::Standard);
+    REQUIRE(ok.ok);
+    CHECK(ok.order.id == 1);
+    CHECK(shop.catalogue().at(1).stock == 0);
+}
+
 TEST_CASE("Shop: receipt text contains the reference, every line and the total; file is written")
 {
     const std::string dir = (std::filesystem::temp_directory_path() / "wh_test_receipts").string();
