@@ -10,6 +10,7 @@
  *   experiments policies      E6  routing x robot-choice policies, whole warehouse    (WP-E)
  *   experiments fulfilment    E7  trip filling: first-fit vs first-fit decreasing vs exact (WP-E)
  *   experiments trees         E8  BST vs LLRBT vs hash table: lookups vs insertion order (WP-B)
+ *   experiments substring     E9  search box: linear scan vs suffix array (sorting + binary search) (WP-B)
  *   experiments all           everything
  *
  * Every experiment prints a summary table and writes a CSV file into
@@ -938,6 +939,244 @@ void experimentTrees()
     }
 }
 
+
+// ===========================================================================
+// E9 Substring search for the shop's search box: linear scan vs suffix array   (WP-B)
+// ===========================================================================
+//
+// Question: the search box finds products whose name CONTAINS the typed text ("ric" -> "Bag of
+// rice"). Binary search cannot do this directly, because the names are sorted by their FIRST
+// letters only. Catalogue::search() therefore scans every name: O(n * m). Is that good enough, or
+// is a better structure worth its cost?
+//
+// The structure tested is a suffix array, which COMBINES two course topics (sorting + binary search):
+//   1. Build once: list every suffix of every lower-case name ("rice", "ice", "ce", "e" ...) and
+//      sort that list with mergeSort [L4]. Cost: O(S log S) comparisons, S = number of suffixes.
+//   2. Search: every name that contains "ric" has a suffix that STARTS with "ric", and in the sorted
+//      list those suffixes sit next to each other. A binary search for the first suffix >= "ric"
+//      (the "rank" of the key, Lecture 7 slide 5) finds the block in O(log S) comparisons; the block
+//      is then read off. The problem is transformed so that binary search can be used.
+//
+// Three versions of the search box are compared, all returning exactly the same products:
+//   A  linear scan, lower-casing every name on every search    (what Catalogue::search does today)
+//   B  linear scan over names lower-cased once in advance      (the cheap fix the shop README suggests)
+//   C  suffix array, built once                                (more memory, much less work per search)
+// Measured: names examined / suffix comparisons per search (machine independent), microseconds per
+// search (median of 3 runs, machine dependent), build cost and extra memory of C, and the number of
+// searches after which C's build cost has been repaid ("break-even").
+// Only product NAMES are searched here; the real search() also checks the category.
+
+struct Suffix {
+    int name;   ///< index of the name in the list
+    int start;  ///< position in that name where the suffix begins
+};
+
+/// Product-like names for large n: "<adjective> <food> <code>", e.g. "fresh mango bkq". The 3-letter
+/// code (the index written in base 26) keeps every name unique. rng() % k gives the same values with
+/// every compiler, unlike std::uniform_int_distribution.
+std::vector<std::string> syntheticNames(int n, unsigned seed)
+{
+    static const char* adjectives[] = {"fresh", "organic", "frozen", "smoked", "sliced", "whole", "low fat", "sweet",
+                                       "spicy", "dried", "salted", "baby", "large", "mini", "wild", "premium"};
+    static const char* foods[] = {"rice", "milk", "bread", "apple", "mango", "cheese", "yoghurt", "butter", "chicken",
+                                  "salmon", "tuna", "pasta", "noodles", "beans", "carrots", "onions", "garlic", "tea",
+                                  "coffee", "honey", "jam", "cereal", "oats", "eggs", "tofu", "lettuce", "spinach",
+                                  "grapes", "banana", "orange juice", "soy sauce", "peanut butter"};
+    std::mt19937 rng(seed);
+    std::vector<std::string> names;
+    names.reserve(static_cast<std::size_t>(n));
+    for (int i = 0; i < n; ++i) {
+        std::string code;
+        for (int v = i, k = 0; k < 4; ++k, v /= 26) code.insert(code.begin(), static_cast<char>('a' + v % 26));
+        names.push_back(std::string(adjectives[rng() % 16]) + " " + foods[rng() % 32] + " " + code);
+    }
+    return names;
+}
+
+/// Version A: what Catalogue::search does (toLower on every name, every time).
+std::vector<int> scanLowerEveryTime(const std::vector<std::string>& names, const std::string& text)
+{
+    const std::string needle = toLower(text);
+    std::vector<int> found;
+    for (int i = 0; i < static_cast<int>(names.size()); ++i)
+        if (toLower(names[static_cast<std::size_t>(i)]).find(needle) != std::string::npos) found.push_back(i);
+    return found;
+}
+
+/// Version B: the same scan over names that were lower-cased once in advance.
+std::vector<int> scanPreLowered(const std::vector<std::string>& lowerNames, const std::string& text)
+{
+    const std::string needle = toLower(text);
+    std::vector<int> found;
+    for (int i = 0; i < static_cast<int>(lowerNames.size()); ++i)
+        if (lowerNames[static_cast<std::size_t>(i)].find(needle) != std::string::npos) found.push_back(i);
+    return found;
+}
+
+/// Version C: a sorted list of all suffixes of all lower-case names.
+class SuffixArray {
+public:
+    explicit SuffixArray(const std::vector<std::string>& names) : names_(names)
+    {
+        for (int i = 0; i < static_cast<int>(names_.size()); ++i)
+            for (int s = 0; s < static_cast<int>(names_[static_cast<std::size_t>(i)].size()); ++s) suffixes_.push_back({i, s});
+        long& cmp = buildComparisons_;
+        mergeSort(suffixes_, [this, &cmp](const Suffix& a, const Suffix& b) {   // O(S log S) [L4]
+            ++cmp;
+            return compareSuffixes(a, b) < 0;
+        });
+    }
+
+    /// Products whose name contains `needle` (lower case), in id order.
+    /// searchCmp: suffix comparisons made by the binary search (about log2 S).
+    /// readCmp:   suffixes read from the matching block (one per match, plus the one that stops it).
+    /// Total work O(log S + k) for k matches, instead of O(n * m) for a scan.
+    std::vector<int> find(const std::string& needle, long& searchCmp, long& readCmp) const
+    {
+        // Binary search for the first suffix that is >= needle (its "rank"), Lecture 7 slide 5.
+        int lo = 0, hi = static_cast<int>(suffixes_.size());
+        while (lo < hi) {
+            const int mid = lo + (hi - lo) / 2;
+            ++searchCmp;
+            if (compareWithText(suffixes_[static_cast<std::size_t>(mid)], needle) < 0) lo = mid + 1;
+            else hi = mid;
+        }
+        // All suffixes that START with needle follow one another from position lo.
+        std::vector<int> found;
+        for (int i = lo; i < static_cast<int>(suffixes_.size()); ++i) {
+            ++readCmp;
+            const Suffix& sfx = suffixes_[static_cast<std::size_t>(i)];
+            if (nameOf(sfx).compare(static_cast<std::size_t>(sfx.start), needle.size(), needle) != 0) break;   // no longer starts with needle
+            found.push_back(sfx.name);
+        }
+        // A name can contain the text twice ("banana" contains "an" twice): sort and drop repeats.
+        std::sort(found.begin(), found.end());
+        found.erase(std::unique(found.begin(), found.end()), found.end());
+        return found;
+    }
+
+    long size() const { return static_cast<long>(suffixes_.size()); }
+    long buildComparisons() const { return buildComparisons_; }
+    long extraBytes() const { return size() * static_cast<long>(sizeof(Suffix)); }
+
+private:
+    const std::string& nameOf(const Suffix& a) const { return names_[static_cast<std::size_t>(a.name)]; }
+
+    // Compares two suffixes in alphabetical order without copying them: std::string::compare can
+    // compare "the part of this string from position p onwards" directly. <0, 0 or >0 like strcmp.
+    int compareSuffixes(const Suffix& a, const Suffix& b) const
+    {
+        return nameOf(a).compare(static_cast<std::size_t>(a.start), std::string::npos, nameOf(b), static_cast<std::size_t>(b.start),
+                                 std::string::npos);
+    }
+    int compareWithText(const Suffix& a, const std::string& text) const
+    {
+        return nameOf(a).compare(static_cast<std::size_t>(a.start), std::string::npos, text);
+    }
+
+    std::vector<std::string> names_;
+    std::vector<Suffix> suffixes_;
+    long buildComparisons_ = 0;
+};
+
+double medianOf3(double a, double b, double c) { return std::max(std::min(a, b), std::min(std::max(a, b), c)); }
+
+void experimentSubstring()
+{
+    std::cout << "\nE9  SEARCH BOX: substring search, linear scan vs suffix array\n";
+    std::ofstream csv = openCsv("e9_substring.csv",
+                                "dataset,n,queries,avg_matches,suffixes,scan_names_per_query,sa_search_avg_cmp,sa_search_max_cmp,"
+                                "log2_suffixes,sa_read_avg,sa_build_cmp,sa_build_ms,sa_extra_kb,us_scan_lower_each_time,"
+                                "us_scan_prelowered,us_suffix_array,breakeven_vs_A,breakeven_vs_B,all_results_equal");
+    std::cout << std::right << std::setw(8) << "n" << std::setw(9) << "matches" << std::setw(10) << "suffixes" << std::setw(9) << "scan/q"
+              << std::setw(10) << "SA bs/q" << std::setw(8) << "log2 S" << std::setw(9) << "SA rd/q" << std::setw(11) << "build cmp"
+              << std::setw(9) << "extra KB" << std::setw(9) << "us A" << std::setw(9) << "us B" << std::setw(9) << "us C" << std::setw(8)
+              << "BE(A)" << std::setw(8) << "BE(B)" << std::setw(6) << "same" << '\n';
+
+    struct Dataset {
+        std::string label;
+        std::vector<std::string> names;
+    };
+    std::vector<Dataset> datasets;
+    {
+        std::vector<std::string> real;
+        for (const Product& p : warehouseCatalogue().all()) real.push_back(p.name);
+        datasets.push_back({"catalogue", real});
+    }
+    for (int n : {1000, 10000, 100000}) datasets.push_back({"synthetic", syntheticNames(n, 9)});
+
+    const int queriesPerSize = 300;
+    for (const Dataset& d : datasets) {
+        const std::vector<std::string>& names = d.names;
+        const int n = static_cast<int>(names.size());
+        std::vector<std::string> lower;
+        for (const std::string& s : names) lower.push_back(toLower(s));
+
+        // Queries: a random 3-letter piece of a random name, as a customer would type it ("ric").
+        std::mt19937 rng(11);
+        std::vector<std::string> queries;
+        while (static_cast<int>(queries.size()) < queriesPerSize) {
+            const std::string& s = lower[rng() % lower.size()];
+            if (s.size() < 3) continue;
+            queries.push_back(s.substr(rng() % (s.size() - 2), 3));
+        }
+
+        // Build the suffix array (timed once; counted exactly).
+        const auto t0 = Clock::now();
+        const SuffixArray sa(lower);
+        const double buildMs = msSince(t0);
+
+        // Correctness first: all three versions must return exactly the same products.
+        bool same = true;
+        long searchTotal = 0, searchMax = 0, readTotal = 0, matches = 0;
+        for (const std::string& q : queries) {
+            long searchCmp = 0, readCmp = 0;
+            const std::vector<int> a = scanLowerEveryTime(names, q);
+            const std::vector<int> b = scanPreLowered(lower, q);
+            const std::vector<int> r = sa.find(q, searchCmp, readCmp);
+            if (a != b || a != r) same = false;
+            searchTotal += searchCmp;
+            searchMax = std::max(searchMax, searchCmp);
+            readTotal += readCmp;
+            matches += static_cast<long>(a.size());
+        }
+        if (!same) std::cout << "  !! the three searches returned different products\n";
+
+        // Time per search: median of three runs over all queries (Lecture 3: times vary between runs).
+        auto timePerQuery = [&](const std::function<std::size_t(const std::string&)>& search) {
+            double runs[3];
+            for (double& run : runs) {
+                std::size_t sink = 0;
+                const auto t = Clock::now();
+                for (const std::string& q : queries) sink += search(q);
+                run = msSince(t) * 1000.0 / queriesPerSize;
+                if (sink == static_cast<std::size_t>(-1)) std::cout << "";   // keeps the work from being optimised away
+            }
+            return medianOf3(runs[0], runs[1], runs[2]);
+        };
+        const double usA = timePerQuery([&](const std::string& q) { return scanLowerEveryTime(names, q).size(); });
+        const double usB = timePerQuery([&](const std::string& q) { return scanPreLowered(lower, q).size(); });
+        const double usC = timePerQuery([&](const std::string& q) { long sc = 0, rc = 0; return sa.find(q, sc, rc).size(); });
+
+        // Break-even: searches needed before the time saved per search repays the one-off build time.
+        auto breakEven = [&](double usScan) { return usScan > usC ? buildMs * 1000.0 / (usScan - usC) : -1.0; };
+        const double beA = breakEven(usA), beB = breakEven(usB);
+
+        const double q = queriesPerSize;
+        const double searchAvg = searchTotal / q, readAvg = readTotal / q, matchAvg = matches / q;
+        const double log2S = std::log2(double(sa.size())), extraKb = sa.extraBytes() / 1024.0;
+        csv << d.label << ',' << n << ',' << queriesPerSize << ',' << fmt(matchAvg, 2) << ',' << sa.size() << ',' << n << ','
+            << fmt(searchAvg, 2) << ',' << searchMax << ',' << fmt(log2S, 2) << ',' << fmt(readAvg, 2) << ',' << sa.buildComparisons() << ','
+            << fmt(buildMs, 2) << ',' << fmt(extraKb, 1) << ',' << fmt(usA, 2) << ',' << fmt(usB, 2) << ',' << fmt(usC, 2) << ','
+            << fmt(beA, 0) << ',' << fmt(beB, 0) << ',' << (same ? "yes" : "no") << '\n';
+        std::cout << std::setw(8) << n << std::setw(9) << fmt(matchAvg, 1) << std::setw(10) << sa.size() << std::setw(9) << n << std::setw(10)
+                  << fmt(searchAvg, 1) << std::setw(8) << fmt(log2S, 1) << std::setw(9) << fmt(readAvg, 1) << std::setw(11)
+                  << sa.buildComparisons() << std::setw(9) << fmt(extraKb, 0) << std::setw(9) << fmt(usA, 1) << std::setw(9) << fmt(usB, 1)
+                  << std::setw(9) << fmt(usC, 1) << std::setw(8) << fmt(beA, 0) << std::setw(8) << fmt(beB, 0) << std::setw(6)
+                  << (same ? "yes" : "NO") << '\n';
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -958,8 +1197,9 @@ int main(int argc, char** argv)
     if (all || which == "policies") { experimentPolicies(); ran = true; }
     if (all || which == "fulfilment") { experimentFulfilment(); ran = true; }
     if (all || which == "trees") { experimentTrees(); ran = true; }
+    if (all || which == "substring") { experimentSubstring(); ran = true; }
     if (!ran) {
-        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|fulfilment|trees|all] [--out DIR]\n";
+        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|fulfilment|trees|substring|all] [--out DIR]\n";
         return 2;
     }
     return 0;
