@@ -1,0 +1,212 @@
+section,test,detail,n,metric,claude,codex,better,note
+integration,project_builds_warnings_as_errors,all modules + experiments,,pass,1,1,tie,"same project, only modules/ds swapped"
+integration,project_unit_tests_pass,6 of 6 test programs,,pass,1,1,tie,"same project, only modules/ds swapped"
+integration,ui_target_builds,wh_ui with FTXUI,,pass,1,1,tie,"same project, only modules/ds swapped"
+own_tests,unit_tests_written,test cases in modules/ds/tests/test_ds.cpp,,unit_tests,23,4,claude,"Claude 416 lines, Codex 39 lines"
+own_tests,own_suite_passes,each ds against its own tests,,pass_rate,1.0,1.0,tie,23/23 and 4/4
+own_tests,runs_other_suite,Claude's 23 tests against Codex ds / Codex's 4 tests against Claude ds,,pass_rate,1.0,0.0,claude,"Codex ds does not compile Claude's suite (missing isValidHeap, items, binarySearchRecursive, detail::partition); Claude ds passes Codex's 4/4"
+neutral_correctness,sorting,"sorting (5 algorithms: order, permutation, stability, strings); claude 1780/1780, codex 1780/1780",,pass,1780,1780,tie,"own harness, reference = C++ standard library"
+neutral_correctness,binary search,"binary search (results + comparison bound); claude 6256/6256, codex 6256/6256",,pass,6256,6256,tie,"own harness, reference = C++ standard library"
+neutral_correctness,min-heap,"min-heap vs std::priority_queue; claude 605/605, codex 605/605",,pass,605,605,tie,"own harness, reference = C++ standard library"
+neutral_correctness,linked queue,"linked queue vs std::queue (+copy, empty errors); claude 308/308, codex 308/308",,pass,308,308,tie,"own harness, reference = C++ standard library"
+neutral_correctness,sanitizers,AddressSanitizer + UBSan + leak check over the whole harness,,pass,1,1,tie,"0 errors, 0 leaks in both"
+info_stability,bubble_sort_equal_keys_kept_in_order,cases where equal keys stayed in original order (of 210),,pass,210,210,info,"informational: only bubble, insertion, merge are expected to be stable"
+info_stability,selection_sort_equal_keys_kept_in_order,cases where equal keys stayed in original order (of 210),,pass,166,166,info,"informational: only bubble, insertion, merge are expected to be stable"
+info_stability,insertion_sort_equal_keys_kept_in_order,cases where equal keys stayed in original order (of 210),,pass,210,210,info,"informational: only bubble, insertion, merge are expected to be stable"
+info_stability,merge_sort_equal_keys_kept_in_order,cases where equal keys stayed in original order (of 210),,pass,210,210,info,"informational: only bubble, insertion, merge are expected to be stable"
+info_stability,quick_sort_equal_keys_kept_in_order,cases where equal keys stayed in original order (of 210),,pass,132,125,info,"informational: only bubble, insertion, merge are expected to be stable"
+features,p_heap_move_only,MinHeap accepts move-only items,,supported,0,1,codex,compile-and-run probe
+features,p_queue_move_only,LinkedQueue accepts move-only items,,supported,0,1,codex,compile-and-run probe
+features,p_sort_no_default_ctor,mergeSort works on types without a default constructor,,supported,0,1,codex,compile-and-run probe
+features,p_emplace,MinHeap::emplace exists,,supported,0,1,codex,compile-and-run probe
+features,p_queue_move_ctor_nothrow,LinkedQueue has a real (noexcept) move constructor,,supported,0,1,codex,compile-and-run probe
+features,p_recursive_search,binarySearchRecursive exists (Lecture 5a),,supported,1,0,claude,compile-and-run probe
+features,p_heap_validator,MinHeap::isValidHeap exists (used by tests),,supported,1,0,claude,compile-and-run probe
+features,p_heap_items,MinHeap::items() exists (for display),,supported,1,0,claude,compile-and-run probe
+features,codex_emplace_return_value,"MinHeap::emplace(5) on heap {1} returns a reference to 1 (the top), not to the new item",,pass,1,0,claude,likely bug in Codex ds; unused by the project so no test catches it
+sorting_comparisons,bubble_sort,all-equal,1000,comparisons,999.0,999.0,tie,deterministic count
+sorting_comparisons,bubble_sort,all-equal,5000,comparisons,4999.0,4999.0,tie,deterministic count
+sorting_comparisons,bubble_sort,all-equal,10000,comparisons,9999.0,9999.0,tie,deterministic count
+sorting_comparisons,bubble_sort,few-unique,1000,comparisons,465830.0,465830.0,tie,deterministic count
+sorting_comparisons,bubble_sort,few-unique,5000,comparisons,11655747.0,11655747.0,tie,deterministic count
+sorting_comparisons,bubble_sort,few-unique,10000,comparisons,46783155.0,46783155.0,tie,deterministic count
+sorting_comparisons,bubble_sort,random,1000,comparisons,498465.0,498465.0,tie,deterministic count
+sorting_comparisons,bubble_sort,random,5000,comparisons,12497175.0,12497175.0,tie,deterministic count
+sorting_comparisons,bubble_sort,random,10000,comparisons,49961330.0,49961330.0,tie,deterministic count
+sorting_comparisons,bubble_sort,reversed,1000,comparisons,499500.0,499500.0,tie,deterministic count
+sorting_comparisons,bubble_sort,reversed,5000,comparisons,12497500.0,12497500.0,tie,deterministic count
+sorting_comparisons,bubble_sort,reversed,10000,comparisons,49995000.0,49995000.0,tie,deterministic count
+sorting_comparisons,bubble_sort,sorted,1000,comparisons,999.0,999.0,tie,deterministic count
+sorting_comparisons,bubble_sort,sorted,5000,comparisons,4999.0,4999.0,tie,deterministic count
+sorting_comparisons,bubble_sort,sorted,10000,comparisons,9999.0,9999.0,tie,deterministic count
+sorting_comparisons,insertion_sort,all-equal,1000,comparisons,999.0,999.0,tie,deterministic count
+sorting_comparisons,insertion_sort,all-equal,5000,comparisons,4999.0,4999.0,tie,deterministic count
+sorting_comparisons,insertion_sort,all-equal,10000,comparisons,9999.0,9999.0,tie,deterministic count
+sorting_comparisons,insertion_sort,few-unique,1000,comparisons,195230.0,195230.0,tie,deterministic count
+sorting_comparisons,insertion_sort,few-unique,5000,comparisons,4680458.0,4680458.0,tie,deterministic count
+sorting_comparisons,insertion_sort,few-unique,10000,comparisons,18632011.0,18632011.0,tie,deterministic count
+sorting_comparisons,insertion_sort,random,1000,comparisons,251057.0,251057.0,tie,deterministic count
+sorting_comparisons,insertion_sort,random,5000,comparisons,6241061.0,6241061.0,tie,deterministic count
+sorting_comparisons,insertion_sort,random,10000,comparisons,25122129.0,25122129.0,tie,deterministic count
+sorting_comparisons,insertion_sort,reversed,1000,comparisons,499500.0,499500.0,tie,deterministic count
+sorting_comparisons,insertion_sort,reversed,5000,comparisons,12497500.0,12497500.0,tie,deterministic count
+sorting_comparisons,insertion_sort,reversed,10000,comparisons,49995000.0,49995000.0,tie,deterministic count
+sorting_comparisons,insertion_sort,sorted,1000,comparisons,999.0,999.0,tie,deterministic count
+sorting_comparisons,insertion_sort,sorted,5000,comparisons,4999.0,4999.0,tie,deterministic count
+sorting_comparisons,insertion_sort,sorted,10000,comparisons,9999.0,9999.0,tie,deterministic count
+sorting_comparisons,merge_sort,all-equal,1000,comparisons,4932.0,4932.0,tie,deterministic count
+sorting_comparisons,merge_sort,all-equal,10000,comparisons,64608.0,64608.0,tie,deterministic count
+sorting_comparisons,merge_sort,few-unique,1000,comparisons,7891.0,7891.0,tie,deterministic count
+sorting_comparisons,merge_sort,few-unique,10000,comparisons,108738.0,108738.0,tie,deterministic count
+sorting_comparisons,merge_sort,few-unique,100000,comparisons,1379101.0,1379101.0,tie,deterministic count
+sorting_comparisons,merge_sort,few-unique,200000,comparisons,2933918.0,2933918.0,tie,deterministic count
+sorting_comparisons,merge_sort,random,1000,comparisons,8694.0,8694.0,tie,deterministic count
+sorting_comparisons,merge_sort,random,10000,comparisons,120398.0,120398.0,tie,deterministic count
+sorting_comparisons,merge_sort,random,100000,comparisons,1536127.0,1536127.0,tie,deterministic count
+sorting_comparisons,merge_sort,random,200000,comparisons,3272661.0,3272661.0,tie,deterministic count
+sorting_comparisons,merge_sort,reversed,1000,comparisons,5044.0,5044.0,tie,deterministic count
+sorting_comparisons,merge_sort,reversed,10000,comparisons,69008.0,69008.0,tie,deterministic count
+sorting_comparisons,merge_sort,reversed,100000,comparisons,853904.0,853904.0,tie,deterministic count
+sorting_comparisons,merge_sort,reversed,200000,comparisons,1807808.0,1807808.0,tie,deterministic count
+sorting_comparisons,merge_sort,sorted,1000,comparisons,4932.0,4932.0,tie,deterministic count
+sorting_comparisons,merge_sort,sorted,10000,comparisons,64608.0,64608.0,tie,deterministic count
+sorting_comparisons,merge_sort,sorted,100000,comparisons,815024.0,815024.0,tie,deterministic count
+sorting_comparisons,merge_sort,sorted,200000,comparisons,1730048.0,1730048.0,tie,deterministic count
+sorting_comparisons,quick_sort,all-equal,1000,comparisons,502497.0,9096.0,codex,deterministic count
+sorting_comparisons,quick_sort,all-equal,10000,comparisons,50024997.0,127072.0,codex,deterministic count
+sorting_comparisons,quick_sort,few-unique,1000,comparisons,129818.0,10430.0,codex,deterministic count
+sorting_comparisons,quick_sort,few-unique,10000,comparisons,12538534.0,132016.0,codex,deterministic count
+sorting_comparisons,quick_sort,random,1000,comparisons,10808.0,12454.0,claude,deterministic count
+sorting_comparisons,quick_sort,random,10000,comparisons,153635.0,178589.0,claude,deterministic count
+sorting_comparisons,quick_sort,random,100000,comparisons,1941472.0,2220773.0,claude,deterministic count
+sorting_comparisons,quick_sort,random,200000,comparisons,4090073.0,5036579.0,claude,deterministic count
+sorting_comparisons,quick_sort,reversed,1000,comparisons,15394.0,9016.0,codex,deterministic count
+sorting_comparisons,quick_sort,reversed,10000,comparisons,236088.0,125452.0,codex,deterministic count
+sorting_comparisons,quick_sort,reversed,100000,comparisons,3186625.0,1600030.0,codex,deterministic count
+sorting_comparisons,quick_sort,reversed,200000,comparisons,6873087.0,3400032.0,codex,deterministic count
+sorting_comparisons,quick_sort,sorted,1000,comparisons,9520.0,9009.0,codex,deterministic count
+sorting_comparisons,quick_sort,sorted,10000,comparisons,131343.0,125439.0,codex,deterministic count
+sorting_comparisons,quick_sort,sorted,100000,comparisons,1665551.0,1600016.0,codex,deterministic count
+sorting_comparisons,quick_sort,sorted,200000,comparisons,3531088.0,3400017.0,codex,deterministic count
+sorting_comparisons,selection_sort,all-equal,1000,comparisons,499500.0,499500.0,tie,deterministic count
+sorting_comparisons,selection_sort,all-equal,5000,comparisons,12497500.0,12497500.0,tie,deterministic count
+sorting_comparisons,selection_sort,all-equal,10000,comparisons,49995000.0,49995000.0,tie,deterministic count
+sorting_comparisons,selection_sort,few-unique,1000,comparisons,499500.0,499500.0,tie,deterministic count
+sorting_comparisons,selection_sort,few-unique,5000,comparisons,12497500.0,12497500.0,tie,deterministic count
+sorting_comparisons,selection_sort,few-unique,10000,comparisons,49995000.0,49995000.0,tie,deterministic count
+sorting_comparisons,selection_sort,random,1000,comparisons,499500.0,499500.0,tie,deterministic count
+sorting_comparisons,selection_sort,random,5000,comparisons,12497500.0,12497500.0,tie,deterministic count
+sorting_comparisons,selection_sort,random,10000,comparisons,49995000.0,49995000.0,tie,deterministic count
+sorting_comparisons,selection_sort,reversed,1000,comparisons,499500.0,499500.0,tie,deterministic count
+sorting_comparisons,selection_sort,reversed,5000,comparisons,12497500.0,12497500.0,tie,deterministic count
+sorting_comparisons,selection_sort,reversed,10000,comparisons,49995000.0,49995000.0,tie,deterministic count
+sorting_comparisons,selection_sort,sorted,1000,comparisons,499500.0,499500.0,tie,deterministic count
+sorting_comparisons,selection_sort,sorted,5000,comparisons,12497500.0,12497500.0,tie,deterministic count
+sorting_comparisons,selection_sort,sorted,10000,comparisons,49995000.0,49995000.0,tie,deterministic count
+structures_time,heap:push_n_then_pop_n,int,100000,ms,8.5075,6.655,codex,median of 3 alternating runs; ties within 15%
+structures_time,heap:push_n_then_pop_n,int,1000000,ms,143.7758,110.9896,codex,median of 3 alternating runs; ties within 15%
+structures_time,heap:push_n_then_pop_n,string40,200000,ms,192.4007,191.4354,tie,median of 3 alternating runs; ties within 15%
+structures_time,queue:copy_construct,int,200000,ms,3.5121,3.181,tie,median of 3 alternating runs; ties within 15%
+structures_time,queue:enqueue_n_then_dequeue_n,int,100000,ms,1.8322,1.8742,tie,median of 3 alternating runs; ties within 15%
+structures_time,queue:enqueue_n_then_dequeue_n,int,1000000,ms,18.9856,20.7201,tie,median of 3 alternating runs; ties within 15%
+structures_time,queue:enqueue_n_then_dequeue_n,string40,200000,ms,14.2791,9.0387,codex,median of 3 alternating runs; ties within 15%
+structures_time,queue:move_construct_or_copy,int,200000,ms,6.9112,3.2693,codex,median of 3 alternating runs; ties within 15%
+structures_time,search:binarySearch_2M_lookups,int,1000000,ms,398.1479,361.5289,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,all-equal,1000,ms,0.0008,0.0014,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,all-equal,5000,ms,0.0035,0.0052,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,all-equal,10000,ms,0.0105,0.011,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,few-unique,1000,ms,1.5711,1.8006,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,few-unique,5000,ms,39.8248,38.9736,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,few-unique,10000,ms,213.3508,175.4162,codex,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,random,1000,ms,2.0219,2.0121,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,random,5000,ms,51.4098,49.1933,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,random,10000,ms,274.7011,222.9782,codex,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,reversed,1000,ms,3.7352,3.7277,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,reversed,5000,ms,95.7974,93.8737,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,reversed,10000,ms,378.8404,387.5978,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,sorted,1000,ms,0.0007,0.0011,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,sorted,5000,ms,0.0035,0.0052,tie,median of 3 alternating runs; ties within 15%
+sorting_time,bubble_sort,sorted,10000,ms,0.007,0.0105,tie,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,all-equal,1000,ms,0.0019,0.0014,tie,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,all-equal,5000,ms,0.0052,0.0064,tie,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,all-equal,10000,ms,0.0104,0.011,tie,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,few-unique,1000,ms,0.0845,0.1442,claude,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,few-unique,5000,ms,1.743,3.3968,claude,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,few-unique,10000,ms,6.7889,13.953,claude,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,random,1000,ms,0.1064,0.1848,claude,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,random,5000,ms,2.2939,4.5641,claude,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,random,10000,ms,9.1863,18.0909,claude,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,reversed,1000,ms,0.1942,0.3592,claude,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,reversed,5000,ms,4.952,8.9599,claude,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,reversed,10000,ms,18.5674,36.1107,claude,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,sorted,1000,ms,0.0021,0.0011,tie,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,sorted,5000,ms,0.0104,0.0076,tie,median of 3 alternating runs; ties within 15%
+sorting_time,insertion_sort,sorted,10000,ms,0.0104,0.0104,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,all-equal,1000,ms,0.0166,0.0173,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,all-equal,10000,ms,0.1921,0.2103,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,few-unique,1000,ms,0.0244,0.0358,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,few-unique,10000,ms,0.3976,0.406,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,few-unique,100000,ms,4.3477,5.4567,claude,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,few-unique,200000,ms,8.9541,10.1495,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,random,1000,ms,0.0561,0.0474,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,random,10000,ms,0.8339,0.7886,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,random,100000,ms,10.1252,10.0669,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,random,200000,ms,21.8536,20.9522,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,reversed,1000,ms,0.0155,0.0166,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,reversed,10000,ms,0.1887,0.2321,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,reversed,100000,ms,2.1813,2.4138,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,reversed,200000,ms,4.6018,5.0175,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,sorted,1000,ms,0.0171,0.0163,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,sorted,10000,ms,0.1834,0.2146,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,sorted,100000,ms,2.1893,2.4644,tie,median of 3 alternating runs; ties within 15%
+sorting_time,merge_sort,sorted,200000,ms,4.6207,5.1814,tie,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,all-equal,1000,ms,0.3616,0.0075,codex,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,all-equal,10000,ms,35.547,0.0968,codex,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,few-unique,1000,ms,0.1035,0.0113,codex,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,few-unique,10000,ms,8.758,0.2117,codex,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,random,1000,ms,0.0368,0.0487,tie,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,random,10000,ms,0.649,0.7893,claude,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,random,100000,ms,7.8912,9.6333,claude,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,random,200000,ms,16.7887,19.9806,claude,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,reversed,1000,ms,0.0157,0.0056,tie,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,reversed,10000,ms,0.2287,0.078,codex,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,reversed,100000,ms,2.9885,0.9462,codex,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,reversed,200000,ms,6.0185,2.0076,codex,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,sorted,1000,ms,0.0092,0.0053,tie,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,sorted,10000,ms,0.1216,0.0714,codex,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,sorted,100000,ms,1.6279,0.9317,codex,median of 3 alternating runs; ties within 15%
+sorting_time,quick_sort,sorted,200000,ms,3.8693,1.9468,codex,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,all-equal,1000,ms,1.3302,1.1416,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,all-equal,5000,ms,34.8703,30.9007,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,all-equal,10000,ms,141.1273,124.6238,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,few-unique,1000,ms,1.3344,1.1386,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,few-unique,5000,ms,35.0216,30.7776,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,few-unique,10000,ms,141.782,124.3841,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,random,1000,ms,1.3933,1.205,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,random,5000,ms,36.28,30.6112,codex,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,random,10000,ms,141.6362,123.5176,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,reversed,1000,ms,1.3303,1.2046,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,reversed,5000,ms,35.596,31.9351,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,reversed,10000,ms,141.206,125.3929,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,sorted,1000,ms,1.3285,1.1397,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,sorted,5000,ms,35.1662,31.1894,tie,median of 3 alternating runs; ties within 15%
+sorting_time,selection_sort,sorted,10000,ms,144.2693,126.5738,tie,median of 3 alternating runs; ties within 15%
+structures_time,binarySearch_avg_comparisons,int,1000000,comparisons,19.45139,19.45139,tie,"same algorithm, same count"
+structures_time,binarySearch_max_comparisons,int,1000000,comparisons,20.0,20.0,tie,"same algorithm, same count"
+code_metrics,header_lines_total,Search+Sorting+MinHeap+LinkedQueue (non-blank),,lines,440,196,info,info
+code_metrics,header_code_lines,lines that are not comments,,lines,291,188,info,Codex packs several statements per line
+code_metrics,header_comment_lines,lines that are comments,,lines,149,8,info,info
+code_metrics,comment_percent,comment lines as % of non-blank lines,,comment_percent,33.9,4.1,claude,more documentation
+summary_tally,sorting_comparisons,rows won (tie = within tolerance),,rows,4,12,codex,ties: 63
+summary_tally,sorting_time,rows won (tie = within tolerance),,rows,13,13,tie,ties: 53
+summary_tally,structures_time,rows won (tie = within tolerance),,rows,0,4,codex,ties: 7
+summary_tally,features,rows won (tie = within tolerance),,rows,4,5,codex,ties: 0
+summary_tally,neutral_correctness,rows won (tie = within tolerance),,rows,0,0,tie,ties: 5
+summary_tally,own_tests,rows won (tie = within tolerance),,rows,2,0,claude,ties: 1
+verdict,correctness,both pass everything on the neutral harness and under sanitizers; Codex's only defect found is emplace's return value,,winner,,,tie,
+verdict,tests_and_documentation,23 tests vs 4; more comments; Lecture-linked extras,,winner,,,claude,
+verdict,modern_c++_support,"move-only types, move constructor, emplace, no default-constructor requirement",,winner,,,codex,
+verdict,quick_sort_on_duplicates_and_reversed_input,all-equal n=10000: 127k vs 50M comparisons (about 390x fewer); reversed about half,,winner,,,codex,
+verdict,quick_sort_on_random_input_and_insertion_sort_speed,"quick sort ~20% faster, insertion sort ~2x faster",,winner,,,claude,
+verdict,heap_and_queue_speed,heap ~22% faster on ints; moving a queue costs a full copy in Claude's version (no move constructor); others within noise,,winner,,,codex,
+verdict,overall,"no clear winner: Claude = more tests, more documentation, lecture-matching extras; Codex = tougher on hard inputs and more modern C++",,winner,,,split,
