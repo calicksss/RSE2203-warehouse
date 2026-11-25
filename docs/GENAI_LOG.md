@@ -306,7 +306,7 @@ These are algorithm-validation evidence for WP-E, not additional independently a
 
 ## G14: Data structures module cross-check — Claude versus Codex (E13, WP-A)
 
-- **Date / member / work package:** Experiment date not recorded / Marissa (WP-A owner; experiment authorship to confirm) / `modules/ds`.
+- **Date / member / work package:** Experiment date not recorded / Marissa (WP-A owner; E13 comparison) / `modules/ds`.
 - **Tools and versions:** Anthropic Claude and OpenAI Codex; exact versions not recorded.
 - **Prompt (reconstructed task summary):** Compare independently generated implementations of the project's sorting, searching, linked queue and min-heap data structures, including correctness, time/space trade-offs, compatibility and test quality. Original prompts and responses are unavailable.
 - **Output produced:** Two replacement versions of `modules/ds`, compared in the same warehouse project. Claude has more course-linked functions and comments; Codex supports move-only types, a real queue move constructor, `emplace` and merge sort without a default-constructor requirement. These features are recorded in E13; do not assume they are present in the current production module.
@@ -471,7 +471,7 @@ The experiment numbers below follow the CSV filenames in the current archive, no
 
 | Work package | Owner (root README) | Recorded evidence | Outstanding confirmation |
 |---|---|---|---|
-| WP-A – data structures | Marissa | G14, E1, E13 | Original prompts, variant source, scores, owner/reviewer sign-off |
+| WP-A – data structures | Marissa | G14, E1, E13 | Original prompts and variant source; review/approval of proposed scores; reviewer sign-off |
 | WP-B – shop | Kavin | G3, G6, G10; E2, E8, E9 | E8-specific AI usage not recorded; sign-off not evidenced |
 | WP-C – navigation | liyou | G4, G5, G7–G9, G11; E3, E4, E10, E14, E15 | Owner/reviewer sign-off not evidenced |
 | WP-D – picking | Raelyn | G12 and G15; E5, E16, E17 | G15 prompt/source/ratings and owner confirmation; sign-off not evidenced |
@@ -479,3 +479,4 @@ The experiment numbers below follow the CSV filenames in the current archive, no
 | WP-F – integration | Calix | G1 baseline, current 100/100 tests, UI build and dependency check; all experiment CSVs | No attributable separate AI prompt/response or evaluation in the supplied log; record it if used, and complete owner/reviewer sign-off |
 
 The project has documented use of more than two AI tools (Claude, ChatGPT/Codex and Gemini), and every experiment E1–E17 is traced above. The log is complete as a record of the supplied evidence, including the latest member additions and the retrospective experiment comparisons. It does not invent original prompts, exact model versions, personal hand traces or missing sign-offs. The external E11–E13/E16 alternative implementations and comparison harnesses are not in the archive; E17 is an analytical result. Those experiments have been audited from their CSVs, not independently rerun. For a final owner-approved submission, recover the original outputs where possible and complete the outstanding confirmations in `VALIDATION_GUIDE.md`. No source code or persistent repository files were changed by this documentation update.
+
