@@ -20,6 +20,8 @@
  *   cells than BFS because it heads towards the goal. Used for a robot's path
  *   from where it is to ONE goal, avoiding obstacles and (if asked) other robots.
  *
+ * Space: O(V) for both searches (per-cell g/parent/closed arrays; the A* heap holds at most O(E) = O(V) entries).
+ *
  * `blocked` (optional): cells to treat as impassable in addition to walls and
  * shelves, as a vector<char> with one entry per cell (1 = blocked). An empty
  * vector means "nothing extra blocked". The start and goal cells are never
