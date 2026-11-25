@@ -1440,6 +1440,129 @@ void experimentHeldKarp()
     }
 }
 
+// ===========================================================================
+// E15 Memoisation: what does DistanceTable's cache save? (WP-C, navigation)
+//
+// The route planner needs "how far is cell A from cell B?" many times per trip.
+// DistanceTable answers by running ONE breadth-first search per source cell and keeping
+// the whole result (memoisation, Lecture 5a), so every later question is an array lookup.
+//
+// Question: how many BFS runs and how much time does that save?
+//   no memo : every question runs its own BFS (bfsDistances) and throws the result away;
+//   cold    : a fresh DistanceTable for each trip (cache starts empty);
+//   warm    : one DistanceTable kept for the whole run, as the simulation does.
+// All three answer the SAME questions: an exact route search (Held-Karp over shelf subsets
+// and shelf sides) written below with the distance function passed in, so the three arms
+// can only differ in how the distances are obtained. Standalone: navigation module unchanged.
+// Same random trips as E4 (same seed and sampling).
+// ===========================================================================
+
+namespace {
+
+/// Length of the best route start -> every shelf (either side) -> end, asking `distance(a, b)` for every step.
+template <typename Distance>
+int memoRouteLength(const GridMap& map, Distance&& distance, CellIndex start, const std::vector<CellIndex>& shelves, CellIndex end)
+{
+    const std::size_t k = shelves.size();
+    std::vector<std::vector<CellIndex>> cells(k);
+    std::size_t sides = 1;
+    for (std::size_t i = 0; i < k; ++i) {
+        cells[i] = map.accessCells(shelves[i]);
+        sides = std::max(sides, cells[i].size());
+    }
+    const int inf = kUnreachable;
+    const std::size_t full = (std::size_t{1} << k) - 1;
+    auto at = [&](std::size_t mask, std::size_t i, std::size_t s) { return (mask * k + i) * sides + s; };
+    std::vector<int> best((full + 1) * k * sides, inf);
+    for (std::size_t i = 0; i < k; ++i)
+        for (std::size_t s = 0; s < cells[i].size(); ++s) best[at(std::size_t{1} << i, i, s)] = distance(start, cells[i][s]);
+    int result = inf;
+    for (std::size_t mask = 1; mask <= full; ++mask)
+        for (std::size_t j = 0; j < k; ++j) {
+            if (!(mask & (std::size_t{1} << j))) continue;
+            for (std::size_t s = 0; s < cells[j].size(); ++s) {
+                const int here = best[at(mask, j, s)];
+                if (here >= inf) continue;
+                if (mask == full) {
+                    result = std::min(result, here + distance(cells[j][s], end));
+                    continue;
+                }
+                for (std::size_t i = 0; i < k; ++i) {
+                    if (mask & (std::size_t{1} << i)) continue;
+                    for (std::size_t t = 0; t < cells[i].size(); ++t) {
+                        const int step = distance(cells[j][s], cells[i][t]);
+                        if (step >= inf) continue;
+                        int& target = best[at(mask | (std::size_t{1} << i), i, t)];
+                        target = std::min(target, here + step);
+                    }
+                }
+            }
+        }
+    return result;
+}
+
+} // namespace
+
+void experimentMemoisation()
+{
+    std::cout << "\nE15  MEMOISATION: BFS per question vs DistanceTable (cold per trip, warm kept for the whole run)\n";
+    const GridMap& map = warehouseMap();
+    DistanceTable warm(map);   // kept across all trips, like in the simulation
+    std::ofstream csv = openCsv("e15_memoisation.csv", "k,trial,queries,naive_bfs_runs,cold_bfs_runs,warm_new_bfs_runs,naive_us,cold_us,warm_us");
+    std::cout << std::right << std::setw(3) << "k" << std::setw(7) << "trips" << std::setw(11) << "questions" << std::setw(11) << "cold BFS" << std::setw(11) << "warm BFS"
+              << std::setw(13) << "naive us" << std::setw(11) << "cold us" << std::setw(11) << "warm us" << std::setw(12) << "naive/cold" << std::setw(12) << "naive/warm"
+              << std::setw(10) << "mismatch" << '\n';
+    std::mt19937 rng(2026);   // same seed and sampling as experimentRouting()
+    for (int k = 1; k <= 8; ++k) {
+        const int trips = k <= 6 ? 100 : 20;   // the no-memo arm gets slow for large k: fewer trips
+        double sumQ = 0, sumCold = 0, sumWarm = 0, usNaive = 0, usCold = 0, usWarm = 0;
+        int mismatches = 0;
+        for (int trial = 0; trial < trips; ++trial) {
+            std::vector<CellIndex> shelves = map.shelves();
+            std::shuffle(shelves.begin(), shelves.end(), rng);
+            shelves.resize(static_cast<std::size_t>(k));
+            const CellIndex start = map.homes()[static_cast<std::size_t>(trial) % map.homes().size()];
+            const CellIndex end = map.inductionCellFor(map.sorters()[static_cast<std::size_t>(trial) % map.sorters().size()]);
+
+            long queries = 0;   // no memo: every question is its own BFS
+            auto t0 = Clock::now();
+            const int naive = memoRouteLength(map,
+                [&](CellIndex a, CellIndex b) {
+                    ++queries;
+                    if (!map.isWalkable(a) || !map.isWalkable(b)) return kUnreachable;
+                    return bfsDistances(map, a)[static_cast<std::size_t>(b)];
+                },
+                start, shelves, end);
+            const double naiveUs = msSince(t0) * 1000.0;
+
+            t0 = Clock::now();   // cold: the table is built and filled inside the timing
+            DistanceTable cold(map);
+            const int coldLength = memoRouteLength(map, [&](CellIndex a, CellIndex b) { return cold.distance(a, b); }, start, shelves, end);
+            const double coldUs = msSince(t0) * 1000.0;
+
+            const int warmBefore = warm.bfsRuns();
+            t0 = Clock::now();
+            const int warmLength = memoRouteLength(map, [&](CellIndex a, CellIndex b) { return warm.distance(a, b); }, start, shelves, end);
+            const double warmUs = msSince(t0) * 1000.0;
+            const int warmNew = warm.bfsRuns() - warmBefore;
+
+            if (naive != coldLength || naive != warmLength) ++mismatches;
+            sumQ += static_cast<double>(queries);
+            sumCold += cold.bfsRuns();
+            sumWarm += warmNew;
+            usNaive += naiveUs;
+            usCold += coldUs;
+            usWarm += warmUs;
+            csv << k << ',' << trial << ',' << queries << ',' << queries << ',' << cold.bfsRuns() << ',' << warmNew << ',' << fmt(naiveUs, 1) << ',' << fmt(coldUs, 1)
+                << ',' << fmt(warmUs, 1) << '\n';
+        }
+        std::cout << std::setw(3) << k << std::setw(7) << trips << std::setw(11) << fmt(sumQ / trips, 0) << std::setw(11) << fmt(sumCold / trips, 1) << std::setw(11)
+                  << fmt(sumWarm / trips, 1) << std::setw(13) << fmt(usNaive / trips, 1) << std::setw(11) << fmt(usCold / trips, 1) << std::setw(11) << fmt(usWarm / trips, 1)
+                  << std::setw(12) << fmt(usNaive / usCold, 1) << std::setw(12) << fmt(usNaive / usWarm, 1) << std::setw(10) << mismatches << '\n';
+    }
+    std::cout << "  the warm table ran " << warm.bfsRuns() << " BFS in total (the map has " << map.cellCount() << " cells, at most one BFS per walkable cell)\n";
+}
+
 int main(int argc, char** argv)
 {
     std::vector<std::string> args(argv + 1, argv + argc);
@@ -1461,8 +1584,9 @@ int main(int argc, char** argv)
     if (all || which == "substring") { experimentSubstring(); ran = true; }
     if (all || which == "improve") { experimentRouteImprovement(); ran = true; }
     if (all || which == "heldkarp") { experimentHeldKarp(); ran = true; }
+    if (all || which == "memo") { experimentMemoisation(); ran = true; }
     if (!ran) {
-        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|fulfilment|trees|substring|improve|all|heldkarp] [--out DIR]\n";
+        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|fulfilment|trees|substring|improve|heldkarp|memo|all] [--out DIR]\n";
         return 2;
     }
     return 0;
