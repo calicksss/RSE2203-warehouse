@@ -325,6 +325,27 @@ def plot_substring(rows, out):
     ax.legend(frameon=False, fontsize=8, loc="upper left")
     save(fig, out, "e9_time_per_search.png")
 
+def plot_heldkarp(rows, out):
+    by_k = defaultdict(list)
+    for r in rows:
+        by_k[int(r["k"])].append(r)
+    ks = sorted(by_k)
+    mean = lambda k, col: sum(float(r[col]) for r in by_k[k]) / len(by_k[k])  # noqa: E731
+    bt_ks = [k for k in ks if float(by_k[k][0]["backtracking_us"]) >= 0]   # backtracking was not run for the largest k
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 4.6))
+    ax1.plot(bt_ks, [mean(k, "backtracking_us") for k in bt_ks], marker="o", markersize=5, linewidth=2, color=SERIES[1], label="backtracking (pruned)")
+    ax1.plot(ks, [mean(k, "heldkarp_us") for k in ks], marker="o", markersize=5, linewidth=2, color=SERIES[0], label="Held-Karp")
+    ax1.set_yscale("log")
+    style(ax1, "E14  Time per exact route (log scale; machine-dependent)", "k (shelves)", "microseconds (mean per trip)")
+    ax1.legend(frameon=False, fontsize=9)
+
+    ax2.plot(bt_ks, [mean(k, "backtracking_nodes") for k in bt_ks], marker="o", markersize=5, linewidth=2, color=SERIES[1], label="backtracking: nodes visited")
+    ax2.plot(ks, [mean(k, "heldkarp_states") for k in ks], marker="o", markersize=5, linewidth=2, color=SERIES[0], label="Held-Karp: states computed")
+    ax2.set_yscale("log")
+    style(ax2, "E14  Work per exact route (log scale)", "k (shelves)", "count (mean per trip)")
+    ax2.legend(frameon=False, fontsize=9)
+    save(fig, out, "e14_heldkarp.png")
 
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
@@ -335,7 +356,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     jobs = [("e1_sorting.csv", plot_sorting), ("e3_pathfinding.csv", plot_pathfinding), ("e4_routing.csv", plot_routing),
             ("e5_traffic.csv", plot_traffic), ("e6_policies.csv", plot_policies), ("e7_fulfilment.csv", plot_fulfilment),
-            ("e8_trees.csv", plot_trees), ("e9_substring.csv", plot_substring), ("e10_route_improvement.csv", plot_route_improvement)]
+            ("e8_trees.csv", plot_trees), ("e9_substring.csv", plot_substring), ("e10_route_improvement.csv", plot_route_improvement), ("e14_heldkarp.csv", plot_heldkarp)]
     for name, fn in jobs:
         path = os.path.join(args.folder, name)
         if os.path.exists(path):

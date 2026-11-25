@@ -1314,6 +1314,132 @@ void experimentRouteImprovement()
     }
 }
 
+// ===========================================================================
+// E14 Exact routes: Held-Karp dynamic programming vs backtracking (WP-C, navigation)
+//
+// Question: backtracking with pruning is exact but its worst case is k! * 2^k leaves
+// (k shelves, 2 sides each). Is there an exact method that scales better, and does it
+// justify a larger exactLimit than 8?
+//
+// Held-Karp: best[S][j][s] = fewest moves to start, visit exactly the shelves in set S
+// and finish at shelf j standing on side s. Each subset is solved once and reused, so the
+// work is O(2^k * k^2 * sides^2) instead of k! * 2^k. The cost is memory: 2^k * k * sides numbers.
+//
+// Standalone, like E10: it only uses the module's GridMap and DistanceTable. Same random
+// trips as E4 (same seed and sampling). Before timing, one untimed Held-Karp run fills the
+// DistanceTable cache, so both methods are timed on pure table lookups.
+// ===========================================================================
+
+namespace {
+
+struct HeldKarpResult {
+    int length = kUnreachable;
+    long states = 0;   // (subset, last shelf, side) states that were reached = the work done
+};
+
+HeldKarpResult heldKarp(const GridMap& map, DistanceTable& dist, CellIndex start, const std::vector<CellIndex>& shelves, CellIndex end)
+{
+    const std::size_t k = shelves.size();
+    HeldKarpResult result;
+    if (k == 0) {
+        result.length = dist.distance(start, end);
+        return result;
+    }
+    std::vector<std::vector<CellIndex>> cells(k);
+    std::size_t sides = 1;
+    for (std::size_t i = 0; i < k; ++i) {
+        cells[i] = map.accessCells(shelves[i]);
+        sides = std::max(sides, cells[i].size());
+    }
+    const int inf = kUnreachable;
+    const std::size_t full = (std::size_t{1} << k) - 1;
+    auto at = [&](std::size_t mask, std::size_t i, std::size_t s) { return (mask * k + i) * sides + s; };
+    std::vector<int> best((full + 1) * k * sides, inf);
+
+    for (std::size_t i = 0; i < k; ++i)                                // first shelf: walk from the start
+        for (std::size_t s = 0; s < cells[i].size(); ++s) best[at(std::size_t{1} << i, i, s)] = dist.distance(start, cells[i][s]);
+
+    for (std::size_t mask = 1; mask <= full; ++mask) {
+        for (std::size_t j = 0; j < k; ++j) {
+            if (!(mask & (std::size_t{1} << j))) continue;
+            for (std::size_t s = 0; s < cells[j].size(); ++s) {
+                const int here = best[at(mask, j, s)];
+                if (here >= inf) continue;
+                ++result.states;
+                if (mask == full) {
+                    result.length = std::min(result.length, here + dist.distance(cells[j][s], end));
+                    continue;
+                }
+                for (std::size_t i = 0; i < k; ++i) {                  // next shelf
+                    if (mask & (std::size_t{1} << i)) continue;
+                    for (std::size_t t = 0; t < cells[i].size(); ++t) {
+                        const int step = dist.distance(cells[j][s], cells[i][t]);
+                        if (step >= inf) continue;
+                        int& target = best[at(mask | (std::size_t{1} << i), i, t)];
+                        target = std::min(target, here + step);
+                    }
+                }
+            }
+        }
+    }
+    return result;
+}
+
+} // namespace
+
+void experimentHeldKarp()
+{
+    std::cout << "\nE14  EXACT ROUTES: Held-Karp DP vs backtracking (same trips as E4 for k <= 10)\n";
+    const GridMap& map = warehouseMap();
+    DistanceTable dist(map);
+    RoutePlanner planner(map, dist);
+    std::ofstream csv = openCsv("e14_heldkarp.csv", "k,trial,backtracking,heldkarp,backtracking_nodes,heldkarp_states,backtracking_us,heldkarp_us");
+    std::cout << std::right << std::setw(3) << "k" << std::setw(8) << "trips" << std::setw(11) << "exact len" << std::setw(11) << "mismatch" << std::setw(14) << "bt nodes"
+              << std::setw(14) << "hk states" << std::setw(13) << "bt us" << std::setw(13) << "hk us" << std::setw(11) << "bt/hk" << '\n';
+    std::mt19937 rng(2026);   // same seed and sampling as experimentRouting()
+    for (int k = 1; k <= 14; ++k) {
+        const int trips = k <= 10 ? 100 : 20;     // backtracking becomes too slow beyond k = 10: fewer trips
+        const bool withBacktracking = k <= 12;    // beyond 12 only Held-Karp is run
+        double sumLen = 0, sumBtUs = 0, sumHkUs = 0;
+        long sumBtNodes = 0, sumHkStates = 0;
+        int mismatches = 0;
+        for (int trial = 0; trial < trips; ++trial) {
+            std::vector<CellIndex> shelves = map.shelves();
+            std::shuffle(shelves.begin(), shelves.end(), rng);
+            shelves.resize(static_cast<std::size_t>(k));
+            const CellIndex start = map.homes()[static_cast<std::size_t>(trial) % map.homes().size()];
+            const CellIndex end = map.inductionCellFor(map.sorters()[static_cast<std::size_t>(trial) % map.sorters().size()]);
+
+            heldKarp(map, dist, start, shelves, end);   // untimed: fills the DistanceTable cache
+            auto t0 = Clock::now();
+            const HeldKarpResult hk = heldKarp(map, dist, start, shelves, end);
+            const double hkUs = msSince(t0) * 1000.0;
+
+            int btLength = -1;
+            long btNodes = -1;
+            double btUs = -1;
+            if (withBacktracking) {
+                t0 = Clock::now();
+                const RoutePlan bt = planner.backtracking(start, shelves, end, true);
+                btUs = msSince(t0) * 1000.0;
+                btLength = bt.length;
+                btNodes = bt.nodes;
+                if (bt.length != hk.length) ++mismatches;
+                sumBtUs += btUs;
+                sumBtNodes += btNodes;
+            }
+            sumLen += hk.length;
+            sumHkUs += hkUs;
+            sumHkStates += hk.states;
+            csv << k << ',' << trial << ',' << btLength << ',' << hk.length << ',' << btNodes << ',' << hk.states << ',' << fmt(btUs, 2) << ',' << fmt(hkUs, 2) << '\n';
+        }
+        std::cout << std::setw(3) << k << std::setw(8) << trips << std::setw(11) << fmt(sumLen / trips, 1) << std::setw(11) << (withBacktracking ? std::to_string(mismatches) : "-")
+                  << std::setw(14) << (withBacktracking ? std::to_string(sumBtNodes / trips) : "-") << std::setw(14) << sumHkStates / trips << std::setw(13)
+                  << (withBacktracking ? fmt(sumBtUs / trips, 1) : "-") << std::setw(13) << fmt(sumHkUs / trips, 1) << std::setw(11)
+                  << (withBacktracking ? fmt(sumBtUs / sumHkUs, 2) : "-") << '\n';
+    }
+}
+
 int main(int argc, char** argv)
 {
     std::vector<std::string> args(argv + 1, argv + argc);
@@ -1334,8 +1460,9 @@ int main(int argc, char** argv)
     if (all || which == "trees") { experimentTrees(); ran = true; }
     if (all || which == "substring") { experimentSubstring(); ran = true; }
     if (all || which == "improve") { experimentRouteImprovement(); ran = true; }
+    if (all || which == "heldkarp") { experimentHeldKarp(); ran = true; }
     if (!ran) {
-        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|fulfilment|trees|substring|improve|all] [--out DIR]\n";
+        std::cerr << "usage: experiments [sorting|search|pathfinding|routing|traffic|policies|fulfilment|trees|substring|improve|all|heldkarp] [--out DIR]\n";
         return 2;
     }
     return 0;
