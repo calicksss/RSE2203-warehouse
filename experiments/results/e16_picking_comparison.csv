@@ -1,0 +1,165 @@
+section,test,detail,n,metric,claude,gemini,better,note
+integration,builds_warnings_as_errors,GCC 14.2 -O3 -Wall -Wextra -Wpedantic -Wshadow -Werror (+ FTXUI),,pass,1,1,tie,Both compile cleanly with 0 warnings
+integration,dependency_layering_check,"tools/check_dependencies.py (allowed: core, ds, navigation, picking)",,pass,1,1,tie,Both obey acyclic module layering
+integration,project_ctest_suites,"All 6 module test executables (ds, shop, navigation, picking, fulfilment, sim)",6,suites_passed,6,6,tie,11/11 test_picking + 48-run test_sim stress pass in both
+integration,mutation_testing,tools/mutation_test.py picking (3 planted defects),3,mutants_caught,3,3,tie,3/3 mutants caught with 0 surprises in both
+dsa_2nd_order_theory,path_step_advance,Claude: ++plan.next cursor O(1)/step | Gemini: vector::erase(begin) O(L)/step,L,2nd_order_time,O(1),O(L),claude,Over L-step path: Claude Theta(L) vs Gemini Theta(L^2) element shifts
+dsa_2nd_order_theory,plannedPath_query,Claude: slice copy by value O(L) time & heap | Gemini: const vector& O(1) time & 0 heap,L,2nd_order_time_space,O(L) + 1 alloc,O(1) + 0 allocs,gemini,Called per moving robot on every UI frame; Claude also calls it in nudge/sidestep
+dsa_2nd_order_theory,unitsOnTrip_query,Claude: LinkedQueue::forEach O(k) pointer chase | Gemini: cached int O(1),k,2nd_order_time,O(k),O(1),gemini,Gemini trades +8B in PickingRobot for O(1) lookup without linked-list traversal
+dsa_2nd_order_theory,shelvesLeft_query,Claude: reserve(k) 1 heap alloc | Gemini: unreserved push_back ceil(log2 k)+1 allocs,k,2nd_order_space_allocs,1 alloc,floor(log2(k-1))+2 allocs,claude,"Both Theta(k) time/space, but Claude avoids geometric vector reallocations"
+dsa_2nd_order_theory,normal_astar_replan_mask,Claude: copies obstacles.mask() O(V) bytes always | Gemini: passes const& (0 copy),V,2nd_order_space_bytes,V bytes/replan,0 bytes/replan,gemini,Gemini only copies V-byte mask on wait>=3 robot-avoidance detours
+dsa_2nd_order_theory,detour_robot_blocking,Claude: scans occupant_[0..V-1] O(V) | Gemini: loops pickers[0..R-1] O(R),"V,R",2nd_order_time,O(V),O(R),gemini,R <= 8 vs V = 693 (or larger grids)
+dsa_2nd_order_theory,sidestep_deadlock_rule,Claude: filters out blocker plannedPath O(d*L) | Gemini: uniform random free cell O(d),L,congestion_heuristic,O(L) path-aware,O(1) blind random,claude,Claude deterministically enters side pockets instead of stepping back onto blocker path
+static_space,sizeof_Battery,Single double level/percent,1,bytes,8,8,tie,Identical 8-byte layout
+static_space,sizeof_DockingStation,int id + CellIndex + double rate + RobotId holder,1,bytes,24,24,tie,Identical 24-byte layout
+static_space,sizeof_PickingRobot,Claude 160B vs Gemini 168B (+unitsOnTrip_ & onTrip_ cache),1,bytes,160,168,claude,+8B in Gemini buys O(1) unitsOnTrip() & explicit trip state
+static_space,sizeof_TrafficController,Claude 2568B vs Gemini 2592B (+moved_ vector header),1,bytes,2568,2592,claude,+24B in Gemini for per-tick moved_ guard vector
+static_space,compiled_library_size,Release (-O3) static archive libwh_picking.a,1,bytes,71786,55584,gemini,Gemini compiled archive is 22.6% smaller
+robustness_probes,P1_dock_ctor_validation,"DockingStation(0, kNoCell, -5.0) throws on invalid cell/rate",1,pass,0,1,gemini,Defensive invariant / edge-case check
+robustness_probes,P2_sendToDock_reservation_safety,sendToDock reserves free dock and rejects dock held by another robot,1,pass,0,1,gemini,Defensive invariant / edge-case check
+robustness_probes,P3_assignTrip_stop_and_id_validation,"assignTrip rejects empty PickStop units, kNoCell access, or tripId <= 0",1,pass,0,1,gemini,Defensive invariant / edge-case check
+robustness_probes,P4_moveTo_same_cell_invariant,"moveTo(sameCell, drain) on Idle robot keeps moves()==0 and state==Idle",1,pass,0,1,gemini,Defensive invariant / edge-case check
+robustness_probes,P5_no_wait_and_move_double_count,Sidestep tick counts 1 move (not both +1 wait AND +1 move in same tick),1,pass,0,1,gemini,Defensive invariant / edge-case check
+robustness_probes,P6_low_battery_at_dock_no_stall,Robot at assigned dock with <=0.01% battery charges instead of 30-tick stall,1,pass,0,1,gemini,Defensive invariant / edge-case check
+micro_time_B1,step_advance_only,L-1 pure step advancements along corridor (no A* replan),16,microseconds,1.9,1.899,tie,Claude O(1) cursor vs Gemini O(L) vector::erase(begin)
+micro_time_B1,step_advance_only,L-1 pure step advancements along corridor (no A* replan),64,microseconds,14.234,10.882,gemini,Claude O(1) cursor vs Gemini O(L) vector::erase(begin)
+micro_time_B1,step_advance_only,L-1 pure step advancements along corridor (no A* replan),256,microseconds,69.033,74.087,claude,Claude O(1) cursor vs Gemini O(L) vector::erase(begin)
+micro_time_B1,step_advance_only,L-1 pure step advancements along corridor (no A* replan),1024,microseconds,624.24,751.86,claude,Claude O(1) cursor vs Gemini O(L) vector::erase(begin)
+micro_time_B2,plannedPath_1000_queries,"1,000 UI plannedPath(0) range-for iterations",16,microseconds,96.0,10.7,gemini,Gemini const& O(1) vs Claude slice copy O(L)
+micro_space_B2,plannedPath_1000_queries_allocs,"Heap allocations during 1,000 plannedPath(0) calls",16,alloc_count,1001,1,gemini,1 setup alloc + 0/query (Gemini) vs 1/query (Claude)
+micro_space_B2,plannedPath_1000_queries_bytes,"Heap bytes allocated during 1,000 plannedPath(0) calls",16,bytes,60064,64,gemini,Claude allocates 4*L bytes per query
+micro_time_B2,plannedPath_1000_queries,"1,000 UI plannedPath(0) range-for iterations",64,microseconds,93.1,19.1,gemini,Gemini const& O(1) vs Claude slice copy O(L)
+micro_space_B2,plannedPath_1000_queries_allocs,"Heap allocations during 1,000 plannedPath(0) calls",64,alloc_count,1001,1,gemini,1 setup alloc + 0/query (Gemini) vs 1/query (Claude)
+micro_space_B2,plannedPath_1000_queries_bytes,"Heap bytes allocated during 1,000 plannedPath(0) calls",64,bytes,252064,64,gemini,Claude allocates 4*L bytes per query
+micro_time_B2,plannedPath_1000_queries,"1,000 UI plannedPath(0) range-for iterations",256,microseconds,169.3,54.7,gemini,Gemini const& O(1) vs Claude slice copy O(L)
+micro_space_B2,plannedPath_1000_queries_allocs,"Heap allocations during 1,000 plannedPath(0) calls",256,alloc_count,1001,1,gemini,1 setup alloc + 0/query (Gemini) vs 1/query (Claude)
+micro_space_B2,plannedPath_1000_queries_bytes,"Heap bytes allocated during 1,000 plannedPath(0) calls",256,bytes,1020064,64,gemini,Claude allocates 4*L bytes per query
+micro_time_B2,plannedPath_1000_queries,"1,000 UI plannedPath(0) range-for iterations",1024,microseconds,245.6,204.3,gemini,Gemini const& O(1) vs Claude slice copy O(L)
+micro_space_B2,plannedPath_1000_queries_allocs,"Heap allocations during 1,000 plannedPath(0) calls",1024,alloc_count,1001,1,gemini,1 setup alloc + 0/query (Gemini) vs 1/query (Claude)
+micro_space_B2,plannedPath_1000_queries_bytes,"Heap bytes allocated during 1,000 plannedPath(0) calls",1024,bytes,4092064,64,gemini,Claude allocates 4*L bytes per query
+micro_time_B3,unitsOnTrip_100k_queries,"100,000 calls to PickingRobot::unitsOnTrip()",2,microseconds,151.5,0.0,gemini,Gemini O(1) cached int vs Claude O(k) LinkedQueue scan
+micro_time_B4,shelvesLeft_1000_queries,"1,000 calls to PickingRobot::shelvesLeft()",2,microseconds,45.5,128.0,claude,Claude reserve(k) vs Gemini geometric push_back
+micro_space_B4,shelvesLeft_1000_queries_allocs,"Heap allocations during 1,000 shelvesLeft() calls",2,alloc_count,1001,2001,claude,Claude 1 alloc/call vs Gemini log2(k)+1 allocs/call
+micro_time_B3,unitsOnTrip_100k_queries,"100,000 calls to PickingRobot::unitsOnTrip()",8,microseconds,458.4,0.1,gemini,Gemini O(1) cached int vs Claude O(k) LinkedQueue scan
+micro_time_B4,shelvesLeft_1000_queries,"1,000 calls to PickingRobot::shelvesLeft()",8,microseconds,52.4,277.4,claude,Claude reserve(k) vs Gemini geometric push_back
+micro_space_B4,shelvesLeft_1000_queries_allocs,"Heap allocations during 1,000 shelvesLeft() calls",8,alloc_count,1001,4001,claude,Claude 1 alloc/call vs Gemini log2(k)+1 allocs/call
+micro_time_B3,unitsOnTrip_100k_queries,"100,000 calls to PickingRobot::unitsOnTrip()",32,microseconds,2412.5,0.1,gemini,Gemini O(1) cached int vs Claude O(k) LinkedQueue scan
+micro_time_B4,shelvesLeft_1000_queries,"1,000 calls to PickingRobot::shelvesLeft()",32,microseconds,63.6,433.4,claude,Claude reserve(k) vs Gemini geometric push_back
+micro_space_B4,shelvesLeft_1000_queries_allocs,"Heap allocations during 1,000 shelvesLeft() calls",32,alloc_count,1001,6001,claude,Claude 1 alloc/call vs Gemini log2(k)+1 allocs/call
+micro_time_B3,unitsOnTrip_100k_queries,"100,000 calls to PickingRobot::unitsOnTrip()",128,microseconds,19191.4,0.0,gemini,Gemini O(1) cached int vs Claude O(k) LinkedQueue scan
+micro_time_B4,shelvesLeft_1000_queries,"1,000 calls to PickingRobot::shelvesLeft()",128,microseconds,254.8,805.0,claude,Claude reserve(k) vs Gemini geometric push_back
+micro_space_B4,shelvesLeft_1000_queries_allocs,"Heap allocations during 1,000 shelvesLeft() calls",128,alloc_count,1001,8001,claude,Claude 1 alloc/call vs Gemini log2(k)+1 allocs/call
+micro_space_B5,normal_replan_100_calls_bytes,Total heap bytes across 100 1-step goal-change replans,676,bytes,686000,618800,gemini,Claude copies V-byte obstacles.mask() on every replan
+micro_space_B5,normal_replan_100_calls_bytes,Total heap bytes across 100 1-step goal-change replans,2500,bytes,2510000,2260400,gemini,Claude copies V-byte obstacles.mask() on every replan
+micro_space_B5,normal_replan_100_calls_bytes,Total heap bytes across 100 1-step goal-change replans,10000,bytes,10010000,9010400,gemini,Claude copies V-byte obstacles.mask() on every replan
+corridor_deadlock,corridor_L7_solved,"Seeds resolved within 600 ticks (single-lane corridor len 7, 1 pocket)",50,seeds_solved,50,28,claude,Claude 50/50 deterministic pocket entry vs Gemini 28/50 random walk
+corridor_deadlock,corridor_L7_ticks,"Mean ticks for 2 head-on robots to swap ends (len 7, 50 seeds)",7,ticks,25.0,279.68,claude,Claude path-aware sidestep avoids stepping onto blocker's path
+corridor_deadlock,corridor_L7_waits,"Mean waits in head-on corridor test (len 7, 50 seeds)",7,waits,33.0,471.16,claude,Path-aware sidestep eliminates repeated corridor ping-pong
+corridor_deadlock,corridor_L7_sidesteps,"Mean sidesteps in head-on corridor test (len 7, 50 seeds)",7,sidesteps,3.0,39.08,claude,3 sidesteps in Claude vs ~39 in Gemini
+corridor_deadlock,corridor_L13_solved,"Seeds resolved within 600 ticks (single-lane corridor len 13, 1 pocket)",50,seeds_solved,50,28,claude,Claude 50/50 deterministic pocket entry vs Gemini 28/50 random walk
+corridor_deadlock,corridor_L13_ticks,"Mean ticks for 2 head-on robots to swap ends (len 13, 50 seeds)",13,ticks,31.0,283.04,claude,Claude path-aware sidestep avoids stepping onto blocker's path
+corridor_deadlock,corridor_L13_waits,"Mean waits in head-on corridor test (len 13, 50 seeds)",13,waits,33.0,468.96,claude,Path-aware sidestep eliminates repeated corridor ping-pong
+corridor_deadlock,corridor_L13_sidesteps,"Mean sidesteps in head-on corridor test (len 13, 50 seeds)",13,sidesteps,3.0,39.08,claude,3 sidesteps in Claude vs ~39 in Gemini
+e5_fleet_scaling,makespan_ticks,"80 orders, random obstacles, mean of 15 seeds",1,ticks,4567.0,4567.0,tie,Completion tick of last order
+e5_fleet_scaling,mean_lead_time,"80 orders, random obstacles, mean of 15 seeds",1,ticks,2279.44,2279.44,tie,Mean order turnaround ticks
+e5_fleet_scaling,distance_moves,"80 orders, random obstacles, mean of 15 seeds",1,cells,3642.8,3642.8,tie,Total picker cells moved
+e5_fleet_scaling,waits,"80 orders, random obstacles, mean of 15 seeds",1,waits,0.0,0.0,tie,Claude replans 1 tick earlier (waitStreak+1>=3) & nudges off full path
+e5_fleet_scaling,congestion_pct,"80 orders, random obstacles, mean of 15 seeds",1,percent,0.0,0.0,tie,100 * waits / (moves + waits)
+e5_fleet_scaling,collisions,Safety invariant across all 15 seeds,1,collisions,0,0,tie,Must be 0 by construction
+e5_fleet_scaling,headless_runtime_ms,Wall-clock simulation time (median of 3 per seed),1,milliseconds,15.608,26.406,claude,Claude O(1) cursor + leaner step loop
+e5_fleet_scaling,ui_query_runtime_ms,"Simulation + per-tick UI queries (plannedPath, shelvesLeft, unitsOnTrip)",1,milliseconds,16.037,26.595,claude,Includes per-frame dashboard query overhead
+e5_fleet_scaling,total_heap_allocs,Total heap allocations across full 80-order run,1,alloc_count,226167.1,227133.5,tie,Gemini avoids mask copies & plannedPath slice allocs
+e5_fleet_scaling,total_heap_kb,Total cumulative heap KB allocated across full run,1,kilobytes,7757.41,7595.95,gemini,Cumulative dynamic memory churn
+e5_fleet_scaling,peak_heap_kb,Peak live heap KB during simulation,1,kilobytes,1226.81,1226.32,tie,Dominated by DistanceTable (~2 MB when full) + sim state
+e5_fleet_scaling,makespan_ticks,"80 orders, random obstacles, mean of 15 seeds",2,ticks,2374.27,2379.4,tie,Completion tick of last order
+e5_fleet_scaling,mean_lead_time,"80 orders, random obstacles, mean of 15 seeds",2,ticks,1201.51,1203.78,tie,Mean order turnaround ticks
+e5_fleet_scaling,distance_moves,"80 orders, random obstacles, mean of 15 seeds",2,cells,3785.6,3784.27,tie,Total picker cells moved
+e5_fleet_scaling,waits,"80 orders, random obstacles, mean of 15 seeds",2,waits,26.33,33.47,claude,Claude replans 1 tick earlier (waitStreak+1>=3) & nudges off full path
+e5_fleet_scaling,congestion_pct,"80 orders, random obstacles, mean of 15 seeds",2,percent,0.69,0.877,claude,100 * waits / (moves + waits)
+e5_fleet_scaling,collisions,Safety invariant across all 15 seeds,2,collisions,0,0,tie,Must be 0 by construction
+e5_fleet_scaling,headless_runtime_ms,Wall-clock simulation time (median of 3 per seed),2,milliseconds,15.507,24.533,claude,Claude O(1) cursor + leaner step loop
+e5_fleet_scaling,ui_query_runtime_ms,"Simulation + per-tick UI queries (plannedPath, shelvesLeft, unitsOnTrip)",2,milliseconds,16.375,24.8,claude,Includes per-frame dashboard query overhead
+e5_fleet_scaling,total_heap_allocs,Total heap allocations across full 80-order run,2,alloc_count,227364.0,226039.0,gemini,Gemini avoids mask copies & plannedPath slice allocs
+e5_fleet_scaling,total_heap_kb,Total cumulative heap KB allocated across full run,2,kilobytes,7652.51,7475.09,gemini,Cumulative dynamic memory churn
+e5_fleet_scaling,peak_heap_kb,Peak live heap KB during simulation,2,kilobytes,1248.58,1248.47,tie,Dominated by DistanceTable (~2 MB when full) + sim state
+e5_fleet_scaling,makespan_ticks,"80 orders, random obstacles, mean of 15 seeds",3,ticks,1607.87,1614.8,tie,Completion tick of last order
+e5_fleet_scaling,mean_lead_time,"80 orders, random obstacles, mean of 15 seeds",3,ticks,815.47,817.03,tie,Mean order turnaround ticks
+e5_fleet_scaling,distance_moves,"80 orders, random obstacles, mean of 15 seeds",3,cells,3806.4,3809.4,tie,Total picker cells moved
+e5_fleet_scaling,waits,"80 orders, random obstacles, mean of 15 seeds",3,waits,56.8,75.27,claude,Claude replans 1 tick earlier (waitStreak+1>=3) & nudges off full path
+e5_fleet_scaling,congestion_pct,"80 orders, random obstacles, mean of 15 seeds",3,percent,1.471,1.935,claude,100 * waits / (moves + waits)
+e5_fleet_scaling,collisions,Safety invariant across all 15 seeds,3,collisions,0,0,tie,Must be 0 by construction
+e5_fleet_scaling,headless_runtime_ms,Wall-clock simulation time (median of 3 per seed),3,milliseconds,15.142,22.767,claude,Claude O(1) cursor + leaner step loop
+e5_fleet_scaling,ui_query_runtime_ms,"Simulation + per-tick UI queries (plannedPath, shelvesLeft, unitsOnTrip)",3,milliseconds,15.856,24.265,claude,Includes per-frame dashboard query overhead
+e5_fleet_scaling,total_heap_allocs,Total heap allocations across full 80-order run,3,alloc_count,227684.0,225215.3,gemini,Gemini avoids mask copies & plannedPath slice allocs
+e5_fleet_scaling,total_heap_kb,Total cumulative heap KB allocated across full run,3,kilobytes,7671.69,7468.76,gemini,Cumulative dynamic memory churn
+e5_fleet_scaling,peak_heap_kb,Peak live heap KB during simulation,3,kilobytes,1255.43,1253.0,tie,Dominated by DistanceTable (~2 MB when full) + sim state
+e5_fleet_scaling,makespan_ticks,"80 orders, random obstacles, mean of 15 seeds",4,ticks,1225.13,1242.4,claude,Completion tick of last order
+e5_fleet_scaling,mean_lead_time,"80 orders, random obstacles, mean of 15 seeds",4,ticks,627.91,635.02,claude,Mean order turnaround ticks
+e5_fleet_scaling,distance_moves,"80 orders, random obstacles, mean of 15 seeds",4,cells,3881.93,3898.73,tie,Total picker cells moved
+e5_fleet_scaling,waits,"80 orders, random obstacles, mean of 15 seeds",4,waits,77.6,98.0,claude,Claude replans 1 tick earlier (waitStreak+1>=3) & nudges off full path
+e5_fleet_scaling,congestion_pct,"80 orders, random obstacles, mean of 15 seeds",4,percent,1.961,2.454,claude,100 * waits / (moves + waits)
+e5_fleet_scaling,collisions,Safety invariant across all 15 seeds,4,collisions,0,0,tie,Must be 0 by construction
+e5_fleet_scaling,headless_runtime_ms,Wall-clock simulation time (median of 3 per seed),4,milliseconds,15.325,24.426,claude,Claude O(1) cursor + leaner step loop
+e5_fleet_scaling,ui_query_runtime_ms,"Simulation + per-tick UI queries (plannedPath, shelvesLeft, unitsOnTrip)",4,milliseconds,16.382,24.336,claude,Includes per-frame dashboard query overhead
+e5_fleet_scaling,total_heap_allocs,Total heap allocations across full 80-order run,4,alloc_count,228725.7,227326.1,gemini,Gemini avoids mask copies & plannedPath slice allocs
+e5_fleet_scaling,total_heap_kb,Total cumulative heap KB allocated across full run,4,kilobytes,7731.14,7531.38,gemini,Cumulative dynamic memory churn
+e5_fleet_scaling,peak_heap_kb,Peak live heap KB during simulation,4,kilobytes,1271.88,1275.15,tie,Dominated by DistanceTable (~2 MB when full) + sim state
+e5_fleet_scaling,makespan_ticks,"80 orders, random obstacles, mean of 15 seeds",5,ticks,1003.13,1031.33,claude,Completion tick of last order
+e5_fleet_scaling,mean_lead_time,"80 orders, random obstacles, mean of 15 seeds",5,ticks,510.73,520.1,claude,Mean order turnaround ticks
+e5_fleet_scaling,distance_moves,"80 orders, random obstacles, mean of 15 seeds",5,cells,3912.8,3968.0,claude,Total picker cells moved
+e5_fleet_scaling,waits,"80 orders, random obstacles, mean of 15 seeds",5,waits,88.47,141.2,claude,Claude replans 1 tick earlier (waitStreak+1>=3) & nudges off full path
+e5_fleet_scaling,congestion_pct,"80 orders, random obstacles, mean of 15 seeds",5,percent,2.206,3.438,claude,100 * waits / (moves + waits)
+e5_fleet_scaling,collisions,Safety invariant across all 15 seeds,5,collisions,0,0,tie,Must be 0 by construction
+e5_fleet_scaling,headless_runtime_ms,Wall-clock simulation time (median of 3 per seed),5,milliseconds,16.024,24.163,claude,Claude O(1) cursor + leaner step loop
+e5_fleet_scaling,ui_query_runtime_ms,"Simulation + per-tick UI queries (plannedPath, shelvesLeft, unitsOnTrip)",5,milliseconds,16.065,25.024,claude,Includes per-frame dashboard query overhead
+e5_fleet_scaling,total_heap_allocs,Total heap allocations across full 80-order run,5,alloc_count,229374.1,232756.5,claude,Gemini avoids mask copies & plannedPath slice allocs
+e5_fleet_scaling,total_heap_kb,Total cumulative heap KB allocated across full run,5,kilobytes,7784.32,7726.1,gemini,Cumulative dynamic memory churn
+e5_fleet_scaling,peak_heap_kb,Peak live heap KB during simulation,5,kilobytes,1275.95,1304.31,claude,Dominated by DistanceTable (~2 MB when full) + sim state
+e5_fleet_scaling,makespan_ticks,"80 orders, random obstacles, mean of 15 seeds",6,ticks,855.13,857.67,tie,Completion tick of last order
+e5_fleet_scaling,mean_lead_time,"80 orders, random obstacles, mean of 15 seeds",6,ticks,443.91,441.32,tie,Mean order turnaround ticks
+e5_fleet_scaling,distance_moves,"80 orders, random obstacles, mean of 15 seeds",6,cells,4039.53,3989.47,gemini,Total picker cells moved
+e5_fleet_scaling,waits,"80 orders, random obstacles, mean of 15 seeds",6,waits,123.6,160.53,claude,Claude replans 1 tick earlier (waitStreak+1>=3) & nudges off full path
+e5_fleet_scaling,congestion_pct,"80 orders, random obstacles, mean of 15 seeds",6,percent,2.959,3.854,claude,100 * waits / (moves + waits)
+e5_fleet_scaling,collisions,Safety invariant across all 15 seeds,6,collisions,0,0,tie,Must be 0 by construction
+e5_fleet_scaling,headless_runtime_ms,Wall-clock simulation time (median of 3 per seed),6,milliseconds,15.936,24.836,claude,Claude O(1) cursor + leaner step loop
+e5_fleet_scaling,ui_query_runtime_ms,"Simulation + per-tick UI queries (plannedPath, shelvesLeft, unitsOnTrip)",6,milliseconds,16.741,25.552,claude,Includes per-frame dashboard query overhead
+e5_fleet_scaling,total_heap_allocs,Total heap allocations across full 80-order run,6,alloc_count,230905.0,232207.6,claude,Gemini avoids mask copies & plannedPath slice allocs
+e5_fleet_scaling,total_heap_kb,Total cumulative heap KB allocated across full run,6,kilobytes,7896.92,7757.37,gemini,Cumulative dynamic memory churn
+e5_fleet_scaling,peak_heap_kb,Peak live heap KB during simulation,6,kilobytes,1287.24,1307.21,claude,Dominated by DistanceTable (~2 MB when full) + sim state
+e5_fleet_scaling,makespan_ticks,"80 orders, random obstacles, mean of 15 seeds",7,ticks,760.47,772.33,claude,Completion tick of last order
+e5_fleet_scaling,mean_lead_time,"80 orders, random obstacles, mean of 15 seeds",7,ticks,393.98,398.09,claude,Mean order turnaround ticks
+e5_fleet_scaling,distance_moves,"80 orders, random obstacles, mean of 15 seeds",7,cells,4087.93,4098.87,tie,Total picker cells moved
+e5_fleet_scaling,waits,"80 orders, random obstacles, mean of 15 seeds",7,waits,140.73,190.87,claude,Claude replans 1 tick earlier (waitStreak+1>=3) & nudges off full path
+e5_fleet_scaling,congestion_pct,"80 orders, random obstacles, mean of 15 seeds",7,percent,3.324,4.441,claude,100 * waits / (moves + waits)
+e5_fleet_scaling,collisions,Safety invariant across all 15 seeds,7,collisions,0,0,tie,Must be 0 by construction
+e5_fleet_scaling,headless_runtime_ms,Wall-clock simulation time (median of 3 per seed),7,milliseconds,15.065,24.002,claude,Claude O(1) cursor + leaner step loop
+e5_fleet_scaling,ui_query_runtime_ms,"Simulation + per-tick UI queries (plannedPath, shelvesLeft, unitsOnTrip)",7,milliseconds,15.453,25.172,claude,Includes per-frame dashboard query overhead
+e5_fleet_scaling,total_heap_allocs,Total heap allocations across full 80-order run,7,alloc_count,234455.7,229948.1,gemini,Gemini avoids mask copies & plannedPath slice allocs
+e5_fleet_scaling,total_heap_kb,Total cumulative heap KB allocated across full run,7,kilobytes,8019.95,7726.12,gemini,Cumulative dynamic memory churn
+e5_fleet_scaling,peak_heap_kb,Peak live heap KB during simulation,7,kilobytes,1310.25,1296.86,gemini,Dominated by DistanceTable (~2 MB when full) + sim state
+e5_fleet_scaling,makespan_ticks,"80 orders, random obstacles, mean of 15 seeds",8,ticks,688.47,686.53,tie,Completion tick of last order
+e5_fleet_scaling,mean_lead_time,"80 orders, random obstacles, mean of 15 seeds",8,ticks,348.98,351.58,tie,Mean order turnaround ticks
+e5_fleet_scaling,distance_moves,"80 orders, random obstacles, mean of 15 seeds",8,cells,4201.93,4183.0,tie,Total picker cells moved
+e5_fleet_scaling,waits,"80 orders, random obstacles, mean of 15 seeds",8,waits,158.0,220.67,claude,Claude replans 1 tick earlier (waitStreak+1>=3) & nudges off full path
+e5_fleet_scaling,congestion_pct,"80 orders, random obstacles, mean of 15 seeds",8,percent,3.62,5.01,claude,100 * waits / (moves + waits)
+e5_fleet_scaling,collisions,Safety invariant across all 15 seeds,8,collisions,0,0,tie,Must be 0 by construction
+e5_fleet_scaling,headless_runtime_ms,Wall-clock simulation time (median of 3 per seed),8,milliseconds,15.548,24.983,claude,Claude O(1) cursor + leaner step loop
+e5_fleet_scaling,ui_query_runtime_ms,"Simulation + per-tick UI queries (plannedPath, shelvesLeft, unitsOnTrip)",8,milliseconds,16.098,26.01,claude,Includes per-frame dashboard query overhead
+e5_fleet_scaling,total_heap_allocs,Total heap allocations across full 80-order run,8,alloc_count,235543.7,233752.6,gemini,Gemini avoids mask copies & plannedPath slice allocs
+e5_fleet_scaling,total_heap_kb,Total cumulative heap KB allocated across full run,8,kilobytes,8133.21,7905.57,gemini,Cumulative dynamic memory churn
+e5_fleet_scaling,peak_heap_kb,Peak live heap KB during simulation,8,kilobytes,1315.5,1316.43,tie,Dominated by DistanceTable (~2 MB when full) + sim state
+stress_scenarios,scen_no_obst_80ord_makespan,"80 orders, 8 robots, no obstacles",80,ticks,685.93,685.07,tie,All 15/15 seeds completed with 0 collisions
+stress_scenarios,scen_no_obst_80ord_waits,"80 orders, 8 robots, no obstacles",80,waits,156.93,209.73,claude,Total wait ticks
+stress_scenarios,scen_no_obst_80ord_runtime_ms,"80 orders, 8 robots, no obstacles",80,milliseconds,16.763,23.962,claude,Wall-clock simulation runtime
+stress_scenarios,scen_no_obst_80ord_heap_allocs,"80 orders, 8 robots, no obstacles",80,alloc_count,237015.5,232904.3,gemini,Total heap allocations
+stress_scenarios,scen_no_obst_80ord_heap_total_kb,"80 orders, 8 robots, no obstacles",80,kilobytes,8062.37,7783.18,gemini,Total cumulative heap KB
+stress_scenarios,scen_heavy_200ord_makespan,"200 orders, 8 robots, heavy obstacles (p=0.15, max=8)",200,ticks,1648.4,1679.93,claude,All 15/15 seeds completed with 0 collisions
+stress_scenarios,scen_heavy_200ord_waits,"200 orders, 8 robots, heavy obstacles (p=0.15, max=8)",200,waits,422.67,562.6,claude,Total wait ticks
+stress_scenarios,scen_heavy_200ord_runtime_ms,"200 orders, 8 robots, heavy obstacles (p=0.15, max=8)",200,milliseconds,22.457,33.845,claude,Wall-clock simulation runtime
+stress_scenarios,scen_heavy_200ord_heap_allocs,"200 orders, 8 robots, heavy obstacles (p=0.15, max=8)",200,alloc_count,291731.1,286916.8,gemini,Total heap allocations
+stress_scenarios,scen_heavy_200ord_heap_total_kb,"200 orders, 8 robots, heavy obstacles (p=0.15, max=8)",200,kilobytes,14774.33,14223.15,gemini,Total cumulative heap KB
+stress_scenarios,scen_fast_drain_60ord_makespan,"60 orders, 8 robots, 5x battery drain (1.5%/move)",60,ticks,1576.07,1546.2,gemini,All 15/15 seeds completed with 0 collisions
+stress_scenarios,scen_fast_drain_60ord_waits,"60 orders, 8 robots, 5x battery drain (1.5%/move)",60,waits,252.27,317.2,claude,Total wait ticks
+stress_scenarios,scen_fast_drain_60ord_runtime_ms,"60 orders, 8 robots, 5x battery drain (1.5%/move)",60,milliseconds,60.188,59.973,tie,Wall-clock simulation runtime
+stress_scenarios,scen_fast_drain_60ord_heap_allocs,"60 orders, 8 robots, 5x battery drain (1.5%/move)",60,alloc_count,281439.9,273450.9,gemini,Total heap allocations
+stress_scenarios,scen_fast_drain_60ord_heap_total_kb,"60 orders, 8 robots, 5x battery drain (1.5%/move)",60,kilobytes,11112.18,11110.06,tie,Total cumulative heap KB
