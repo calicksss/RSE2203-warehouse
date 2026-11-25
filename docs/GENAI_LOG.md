@@ -154,6 +154,15 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
   - Completeness: compares two exact methods for k = 1 to 14 with CSV and chart; one point off because k >= 11 uses only 20 trips and Held-Karp was not added to the module or its tests.
   - Clarity: commented, follows the style of E4 and E10; chart and table are readable.
   - Relevance: it tests whether a better exact algorithm would improve the program; the answer (no change needed at capacity 8) is itself useful for justifying the current design.
+## G9: Cross-check with a second tool, product catalogue (WP-B)
+
+- **Date / member / work package:** 25 November 2026 / Kavin / WP-B
+- **Tool and version:** ChatGPT (GPT-6 Luna, medium)
+- **Prompt (summary):** "In C++17, write a product catalogue: exact name lookup (case-insensitive), substring search, exact prices; state time and space complexity." (new chat, no project code)
+- **Verification performed:** Its code, unmodified, compiled without warnings and was run against `wh::Catalogue` on the 91 real products with ASan/UBSan: 457 exact lookups and 1,567 substring searches, 0 differences on names; identical stock total.
+- **Comparison:** Lookup: project uses a sorted index + binary search, O(L log N), N extra integers; ChatGPT uses a hash map, O(L) average, a copy of every name as extra memory; 69 ns vs 320 ns per lookup. Substring search: same linear scan in both. Project also searches categories and rejects duplicate names; ChatGPT does neither.
+- **Scores (ChatGPT):** Accuracy 5/5 · Completeness 4/5 · Clarity 4/5 · Relevance 4/5
+- **Evidence:** 0 differences in all tests (accuracy); no hash worst case, no price parsing, accepts duplicates (completeness); substring complexity ignores query length (clarity); generic, no categories (relevance).
 
 ## G9: Fix of defects F2 and F5 in Pathfinding.cpp (tests first), WP-C
 
@@ -188,3 +197,4 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 | G7 | liyou | Claude | E10: greedy + 2-opt vs exact routes | 4 | 4 | 4 | 5 | 2-opt cuts greedy's gap from 25.9% to 10.3% at k=10 in microseconds, but is exact in only 26/100 trips |
 | G8 | liyou | Claude | E14: Held-Karp vs backtracking exact routes | 4 | 4 | 4 | 4 | Same optimal routes; Held-Karp 17x faster at k = 8, 68x at k = 10, but trips never exceed 8 shelves, so no change needed |
 | G9 | liyou | Claude | Fix F2 + F5 in Pathfinding.cpp | 4 | 4 | 4 | 5 | BFS and A* now agree on blocked goals and reject non-walkable start/goal; 3 tests and 3 mutants added |
+| G10 | Kavin | ChatGPT | Catalogue cross-check (WP-B) | 5 | 4 | 4 | 4 | Same results on 91 products; hash map 4-5x faster per lookup but uses more memory; same search-box scan |
