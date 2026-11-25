@@ -15,6 +15,13 @@ bool isBlocked(const std::vector<char>& blocked, CellIndex c)
     return !blocked.empty() && blocked[static_cast<std::size_t>(c)] != 0;
 }
 
+/// A path search only makes sense between walkable cells (floor or dock): walls, shelves and sorters are not
+/// vertices of the graph. This is the same rule DistanceTable uses.
+bool walkableEndpoints(const GridMap& map, CellIndex start, CellIndex goal)
+{
+    return map.isWalkable(start) && map.isWalkable(goal);
+}
+
 /// Walks the parent links back from the goal and returns start->goal (without the start).
 std::vector<CellIndex> rebuildPath(const std::vector<CellIndex>& parent, CellIndex start, CellIndex goal)
 {
@@ -47,8 +54,8 @@ std::vector<int> bfsDistances(const GridMap& map, CellIndex source, const std::v
         for (int i = 0; i < n; ++i) {
             const CellIndex next = nb[i];
             if (dist[static_cast<std::size_t>(next)] != kUnreachable) continue;   // already discovered
-            if (isBlocked(blocked, next)) continue;
             dist[static_cast<std::size_t>(next)] = dist[static_cast<std::size_t>(c)] + 1;
+            if (isBlocked(blocked, next)) continue;   // a blocked cell can be an END point (as in bfsPath and A*), but is never walked through
             frontier.enqueue(next);
         }
     }
@@ -58,6 +65,7 @@ std::vector<int> bfsDistances(const GridMap& map, CellIndex source, const std::v
 PathResult bfsPath(const GridMap& map, CellIndex start, CellIndex goal, const std::vector<char>& blocked)
 {
     PathResult result;
+    if (!walkableEndpoints(map, start, goal)) return result;
     std::vector<CellIndex> parent(static_cast<std::size_t>(map.cellCount()), kNoCell);
     std::vector<char> seen(static_cast<std::size_t>(map.cellCount()), 0);
     LinkedQueue<CellIndex> frontier;
@@ -103,6 +111,7 @@ struct OpenEntry {
 PathResult aStarPath(const GridMap& map, CellIndex start, CellIndex goal, const std::vector<char>& blocked)
 {
     PathResult result;
+    if (!walkableEndpoints(map, start, goal)) return result;
     const std::size_t cells = static_cast<std::size_t>(map.cellCount());
     std::vector<int> g(cells, kUnreachable);        // best known moves from start
     std::vector<CellIndex> parent(cells, kNoCell);
