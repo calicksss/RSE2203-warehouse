@@ -25,7 +25,9 @@
  * `blocked` (optional): cells to treat as impassable in addition to walls and
  * shelves, as a vector<char> with one entry per cell (1 = blocked). An empty
  * vector means "nothing extra blocked". The start and goal cells are never
- * treated as blocked.
+ * treated as blocked. A blocked cell can still be reached as an END point (a robot may be standing
+ * on it for a moment) but is never walked through; bfsDistances, bfsPath and aStarPath all follow
+ * this rule. Start and goal must be walkable cells (floor or dock), otherwise `found` is false.
  */
 #include <vector>
 

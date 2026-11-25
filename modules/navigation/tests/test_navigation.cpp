@@ -473,3 +473,53 @@ TEST_CASE("GridMap: sorter induction cells on the real map are the open floor ce
     CHECK(map.inductionCellFor(map.index({19, 1})) == map.index({19, 2}));
     CHECK(map.inductionCellFor(map.index({19, 16})) == map.index({18, 16}));
 }
+// ---------------------------------------------------------------------------
+// WP-C fixes F2 and F5: BFS and A* must give the same answers
+// ---------------------------------------------------------------------------
+
+TEST_CASE("BFS distances: a blocked cell is reachable as an END point, same as bfsPath and A*")
+{
+    const GridMap map = tinyMap();
+    const CellIndex home = map.index({1, 1});
+    for (CellIndex target = 0; target < map.cellCount(); ++target) {
+        if (!map.isWalkable(target) || target == home) continue;
+        std::vector<char> blocked(static_cast<std::size_t>(map.cellCount()), 0);
+        blocked[static_cast<std::size_t>(target)] = 1;
+        const PathResult viaBfs = bfsPath(map, home, target, blocked);
+        const PathResult viaAStar = aStarPath(map, home, target, blocked);
+        REQUIRE(viaBfs.found);
+        REQUIRE(viaAStar.found);
+        CHECK(bfsDistances(map, home, blocked)[static_cast<std::size_t>(target)] == static_cast<int>(viaBfs.path.size()));
+        CHECK(viaBfs.path.size() == viaAStar.path.size());
+    }
+}
+
+TEST_CASE("BFS distances: a blocked cell is still never walked THROUGH")
+{
+    const GridMap map = tinyMap();
+    const CellIndex home = map.index({1, 1}), dock = map.index({1, 5});
+    std::vector<char> blocked(static_cast<std::size_t>(map.cellCount()), 0);
+    blocked[static_cast<std::size_t>(map.index({1, 3}))] = 1;   // top corridor
+    const std::vector<int> dist = bfsDistances(map, home, blocked);
+    CHECK(dist[static_cast<std::size_t>(map.index({1, 3}))] == 2);   // the blocked cell itself can be reached
+    CHECK(dist[static_cast<std::size_t>(dock)] == 8);                // but the way to the dock goes round it
+}
+
+TEST_CASE("BFS path and A*: a start or goal that is not a walkable cell gives 'not found', like DistanceTable")
+{
+    const GridMap map = tinyMap();
+    DistanceTable table(map);
+    const CellIndex home = map.index({1, 1});
+    const CellIndex shelf = map.index({2, 3}), wall = map.index({0, 0}), sorter = map.index({4, 1});
+    for (CellIndex bad : {shelf, wall, sorter}) {
+        CHECK(!aStarPath(map, bad, home).found);
+        CHECK(!aStarPath(map, home, bad).found);
+        CHECK(!aStarPath(map, bad, bad).found);
+        CHECK(!bfsPath(map, bad, home).found);
+        CHECK(!bfsPath(map, home, bad).found);
+        CHECK(!bfsPath(map, bad, bad).found);
+        CHECK(table.distance(bad, home) == kUnreachable);
+    }
+    CHECK(aStarPath(map, home, home).found);   // a walkable start that is also the goal: found, empty path
+    CHECK(aStarPath(map, home, home).path.empty());
+}

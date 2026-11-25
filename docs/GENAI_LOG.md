@@ -155,6 +155,26 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
   - Clarity: commented, follows the style of E4 and E10; chart and table are readable.
   - Relevance: it tests whether a better exact algorithm would improve the program; the answer (no change needed at capacity 8) is itself useful for justifying the current design.
 
+## G9: Fix of defects F2 and F5 in Pathfinding.cpp (tests first), WP-C
+
+- **Date / member / work package:** 25 November 2026 / liyou / WP-C (navigation)
+- **Tool and version:** Claude (Anthropic), Claude Code, Sonnet 5.5
+- **Prompt (summary):** "Fix F2 (bfsDistances calls a blocked goal unreachable, bfsPath and A* do not) and F5 (A* accepts a start on a shelf, DistanceTable says unreachable). Write the tests first."
+- **Output produced:** 3 new tests in `test_navigation.cpp`, a change to `Pathfinding.cpp` (a `walkableEndpoints` check in `bfsPath` and `aStarPath`; `bfsDistances` records the distance to a blocked cell but does not expand it), a comment update in `Pathfinding.hpp`, and 3 new mutants in `tools/mutation_test.py`.
+- **Verification performed:**
+  - The 3 new tests failed on the old code and pass after the fix; the navigation test program passes 24/24 and `ctest` passes.
+  - `python3 tools/mutation_test.py navigation`: 7 mutants, 0 surprises (the 3 new mutants are all caught).
+  - Callers checked by `grep`: `bfsDistances` is only called without a blocked mask (`GridMap.cpp:131`, `DistanceTable.cpp:22`); `aStarPath` is only called from `TrafficController.cpp:50`, and its goals (home, dock, access cell, induction cell) are all walkable, so no existing behaviour changes.
+  - E4 route results are identical before and after the change; `check_dependencies.py` passes.
+- **Problems identified:** The rule for a non-walkable start (reject it) was the tool's design choice, copied from `DistanceTable`; I confirmed it with the caller check above, since a wrong rule could have stopped a robot from planning.
+- **Changes made:** applied the patch with the tool's script, then removed the helper files; no other source files changed.
+- **Scores:** Accuracy <4>/5 · Completeness <4>/5 · Clarity <4>/5 · Relevance <5>/5
+- **Evidence for the scores:**
+  - Accuracy: the tests failed before and passed after, and all 3 new mutants are caught; one point off because the design choice for non-walkable starts needed my caller check.
+  - Completeness: fixes both defects with tests and mutants; F1 (wrong line numbers in `GridMap` errors) is still open.
+  - Clarity: small change, commented, same style as the module.
+  - Relevance: both defects came from my own validation of WP-C.
+
 ## Summary table (for the report)
 
 | Entry | Member | Tool | Task | Acc. | Comp. | Clar. | Rel. | Principal finding |
@@ -167,3 +187,4 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 | G6 | Kavin | Claude | E9 search-box experiment (WP-B) | 3 | 4 | 4 | 5 | First version had a suffix-comparison bug caught by the results check; current search is good enough for 91 products |
 | G7 | liyou | Claude | E10: greedy + 2-opt vs exact routes | 4 | 4 | 4 | 5 | 2-opt cuts greedy's gap from 25.9% to 10.3% at k=10 in microseconds, but is exact in only 26/100 trips |
 | G8 | liyou | Claude | E14: Held-Karp vs backtracking exact routes | 4 | 4 | 4 | 4 | Same optimal routes; Held-Karp 17x faster at k = 8, 68x at k = 10, but trips never exceed 8 shelves, so no change needed |
+| G9 | liyou | Claude | Fix F2 + F5 in Pathfinding.cpp | 4 | 4 | 4 | 5 | BFS and A* now agree on blocked goals and reject non-walkable start/goal; 3 tests and 3 mutants added |
