@@ -1,0 +1,16 @@
+algo_id,algorithm,sub_operation,claude_time,claude_space,gemini_time,gemini_space,better_complexity,notes
+1,A* search (replan wrapper),Normal replan (goal change / obstacle),O(V log V),O(V) + V-byte mask copy,O(V log V),O(V) + 0 extra bytes (const&),Gemini,Gemini avoids copying obstacles.mask() on normal replans
+1,A* search (replan wrapper),"Detour replan (>= 3 waits, robots as walls)",O(V log V + V),O(V) + V-byte mask,O(V log V + R),O(V) + V-byte mask,Gemini,Gemini marks R pickers O(R) instead of scanning all V cells O(V)
+2,Insertion sort,Order active movers by waitStreak(),O(R) best / O(R^2) worst,O(R) list + O(1) aux,O(R) best / O(R^2) worst,O(R) list + O(1) aux,Tie,Identical ds::insertionSort; nearly sorted between ticks -> O(R)
+3,Greedy traffic rules,Occupancy rebuild & cell lookup (occupant_),O(V + R) rebuild / O(1) lookup,O(V),O(V + R) rebuild / O(1) lookup,O(V + R) (+moved_),Tie,Flat per-cell array gives O(1) collision check in both
+3,Greedy traffic rules,Advance 1 cell along planned path,O(1) (++plan.next cursor),O(L) stored path,O(L) (vector::erase(begin)),O(L) stored path,Claude,Claude moves cursor in O(1); Gemini shifts L-1 ints per step
+3,Greedy traffic rules,Nudge parked (Idle) robot aside,O(L) (scans mover's whole path),O(L) transient heap copy,O(1) (checks <=4 nbrs vs next),O(1) stack only,Gemini,Gemini is O(1) time/space; Claude spends O(L) for better cell choice
+4,Seeded random side-step,Deadlock-breaking move (>= 6 waits),O(L) (filters blocker's path),O(L) transient heap copy,O(1) (uniform over <=4 nbrs),O(1) (<=4 ints),Gemini,Gemini is O(1) time/space; Claude spends O(L) to enter side pockets
+5,Finite-state machine,PickingRobot::tick / sendToDock / moveTo / goal,O(1) per tick (O(u) pick/drop),O(k + u) (LinkedQueue + cargo),O(1) per tick (O(u) pick/drop),O(k + u) (LinkedQueue + cargo),Tie,Same 8-state FSM; sizeof(PickingRobot): Claude 160B vs Gemini 168B
+5,Finite-state machine,PickingRobot::assignTrip,O(k),O(k + u),O(k + u),O(k + u),Tie,Gemini validates stops and sums u<=8 items upfront
+6,Linear scan & queries,Obstacle check along remaining path,O(L),O(1) extra,O(L),O(1) extra,Tie,Both scan remaining planned cells every tick
+6,Linear scan & queries,plannedPath(i) query,O(L) (copies slice by value),O(L) heap (1 alloc/call),O(1) (returns const&),O(1) (0 allocs),Gemini,Called per moving robot on every UI redraw
+6,Linear scan & queries,unitsOnTrip() query,O(k) (LinkedQueue::forEach),+0 B,O(1) (cached int),+8 B per robot,Gemini,Gemini trades +8B struct space for O(1) lookup
+6,Linear scan & queries,shelvesLeft() query,O(k),"O(k), 1 alloc (reserve)",O(k),"O(k), ~log2(k)+1 allocs",Claude,Claude pre-allocates exact capacity; Gemini grows geometrically
+7,Clamping & reservation,Battery::drain/charge & DockingStation::reserve/release,O(1),O(1) (8 B / 24 B),O(1),O(1) (8 B / 24 B),Tie,Identical constant time and space
+TOTAL,Overall per-tick total,Full TrafficController::step + PickingRobot::tick,O(V + R^2 + R*L + r*V log V),O(V + R*L + R*(k + u)),O(V + R^2 + R*L + r*V log V),O(V + R*L + R*(k + u)),Tie (1st order),"Identical asymptotic Big-O; 2nd-order sub-ops: Gemini 6, Claude 2, Tie 6"
