@@ -197,6 +197,36 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 - **Scores:** Accuracy <4>/5 · Completeness <4>/5 · Clarity <4>/5 · Relevance <4>/5
 - **Evidence for the scores:** Accuracy: my run reproduced all counts with 0 mismatches; one point off because the workload is a stand-in for the planner. Completeness: three arms for k = 1 to 8, but fewer trips at k = 7 and 8. Clarity: commented and in the style of E4. Relevance: it measures a design choice WP-C already made.
 
+## G12: Code review, bug fixes and extra tests for WP-D picking
+
+- **Date / member / work package:** 25 November 2026 / raelyn / WP-D (picking)
+- **Tool and version:** Google Antigravity (Gemini)
+- **Prompt (summary):** "Is there any bugs / issues to be fixed or improvements in the codes for modules/picking?"
+- **Output produced:**
+  - A full audit of `modules/picking` (`Battery.hpp`, `DockingStation.hpp`, `PickingRobot.hpp/.cpp`, `TrafficController.hpp/.cpp`);
+  - 6 targeted fixes across `Battery.hpp`, `PickingRobot.hpp/.cpp` and `TrafficController.cpp` with inline comments;
+  - 2 new test cases (`PickingRobot: argument validation and state encapsulation`, `PickingRobot: stranded robot with empty battery recovered by technician`) and negative-input checks in `Battery: stays between 0 and 100` in `modules/picking/tests/test_picking.cpp`;
+  - A summary table and breakdown of the algorithms and data structures used in WP-D (FSM, `ds::LinkedQueue`, `ds::insertionSort`, A\* with dynamic obstacle replanning, and occupancy-based traffic rules).
+- **Verification performed:**
+  - Built and ran `test_picking` with MinGW GCC 14.2.0: 11/11 tests pass (up from 9/9);
+  - Built and ran `test_sim` (80 orders with obstacles and 48 multi-robot stress runs): 7/7 tests pass with 0 collisions;
+  - Checked all callers of `isAvailable()`, `isBusy()` and `tripId()` across `fulfilment/JobManager.cpp` and `ui/Views.cpp` to confirm no regressions in other modules.
+- **Problems identified:**
+  - The first run of the new test `PickingRobot: stranded robot with empty battery recovered by technician` failed (10/11 passed). `World::run` stops as soon as no robot satisfies `wantsToMove() || isBusy()`. Because a stranded robot with 0% battery had `wantsToMove() == false` and `isBusy() == false`, `World::run` exited at tick 1 before the technician swap at tick 30.
+  - Investigating that failure exposed a related defect in `PickingRobot::isAvailable()`: a robot with 0% battery in `Idle` or `Returning` state still returned `isAvailable() == true` (which `JobManager.cpp:268` had been patching around with `r->isAvailable() && r->battery() > 0.0`).
+- **Changes made:**
+  - `TrafficController.cpp`: added missing `metrics.longestWait` update when `replan` fails in Rule 2a (line 155); recomputed `currentNext` and `currentBlocker` after Rule 2d A\* detour replanning so `sidestep` checks the actual blocking robot rather than the pre-detour blocker (lines 196–201); reset `plans_[i].next = 0` when clearing `path` in `sidestep` (line 114).
+  - `PickingRobot.hpp`: added `!battery_.isEmpty()` to `isAvailable()` (line 53) and `battery_.isEmpty()` to `isBusy()` (line 76).
+  - `PickingRobot.cpp`: added `dropCell == kNoCell || sorterIndex < 0` validation in `assignTrip` (line 63); reset `dropCell_ = kNoCell` and `tripId_ = 0` upon delivery in `State::Dropping` (lines 153–154); added `shelves.reserve(route_.size())` in `shelvesLeft()` (line 54).
+  - `Battery.hpp`: guarded `drain` and `charge` with `if (amount > 0.0)` against negative values (lines 18–19).
+  - `tests/test_picking.cpp`: expanded from 9 to 11 unit tests. No files outside `modules/picking` were modified.
+- **Scores:** Accuracy 4/5 · Completeness 5/5 · Clarity 5/5 · Relevance 5/5
+- **Evidence for the scores:**
+  - Accuracy: all 11/11 picking tests and 7/7 simulation stress tests pass after the fixes, and `JobManager.cpp:268` confirmed the `isAvailable()` flaw; one point deducted because the stranded-robot test failed on its first run until `isBusy()` was updated to include `battery_.isEmpty()`.
+  - Completeness: covered all source and header files in `modules/picking`, fixed metric, traffic-blocker and state-cleanup defects, added unit tests, provided inline comments, and mapped WP-D algorithms to course materials ([L1b], [L2], [L4]).
+  - Clarity: inline comments and file/line citations clearly explain every change.
+  - Relevance: strictly respected the module boundary (only `modules/picking` touched) and directly targeted WP-D's state machine and traffic controller.
+
 ## Summary table (for the report)
 
 | Entry | Member | Tool | Task | Acc. | Comp. | Clar. | Rel. | Principal finding |
@@ -212,3 +242,4 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 | G9 | liyou | Claude | Fix F2 + F5 in Pathfinding.cpp | 4 | 4 | 4 | 5 | BFS and A* now agree on blocked goals and reject non-walkable start/goal; 3 tests and 3 mutants added |
 | G10 | Kavin | ChatGPT | Catalogue cross-check (WP-B) | 5 | 4 | 4 | 4 | Same results on 91 products; hash map 4-5x faster per lookup but uses more memory; same search-box scan |
 | G11 | liyou | Claude | E15: DistanceTable memoisation | 4 | 4 | 4 | 4 | The cache is about 500x faster than BFS per question at k = 8 (1,600x when warm) |
+| G12 | | Gemini (Antigravity) | Code review, bug fixes and tests (WP-D) | 4 | 5 | 5 | 5 | Fixed stale blocker after detour, missing longestWait update, and flat-battery isAvailable()/isBusy() bug; 11/11 tests pass |
