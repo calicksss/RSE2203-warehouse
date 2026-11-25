@@ -1,8 +1,8 @@
 # Generative AI usage and evaluation log
 
-The project brief [B] requires the use of at least two generative AI tools to assist in generating basic source code, and an evaluation of their responses against four criteria: **accuracy, completeness, clarity and relevance**. Every substantial use of such a tool is recorded in this log, which forms the basis of the generative AI section of the report.
+The project brief [B] requires the use of at least two generative AI tools to assist in generating basic source code, and an evaluation of their responses against four criteria: **accuracy, completeness, clarity and relevance**. This log records the documented uses and retrospective experiment evidence, forming the basis of the generative AI section of the report.
 
-**Recording procedure.** One entry is made per question or task. The prompt is summarised briefly or linked. Scores follow the rubric in `VALIDATION_GUIDE.md`, and **each score must be supported by evidence** such as a test name, a line number or a counter-example. Citation keys refer to the *References* section of the root `README.md`.
+**Recording procedure.** One entry is made per question or task. The prompt is summarised briefly or linked. Scores follow the rubric in `VALIDATION_GUIDE.md`, and **each score must be supported by evidence** such as a test name, a line number or a counter-example. Citation keys refer to the *References* section of the root `README.md`. Updated 25 November 2026 using the latest supplied team log and project archive. Member-recorded ratings are retained; retrospective ratings are marked `P` (proposed), and `NR` indicates insufficient evidence to rate.
 
 ---
 
@@ -23,7 +23,7 @@ The project brief [B] requires the use of at least two generative AI tools to as
 
 ---
 
-## G1: Initial version of the code base (baseline; to be scored by the team)
+## G1: Initial version of the code base (baseline)
 
 - **Date / member / work package:** 26 October 2026 / team leader / all
 - **Tool:** Claude (Anthropic), used as an agent that wrote and executed code.
@@ -41,24 +41,19 @@ The project brief [B] requires the use of at least two generative AI tools to as
   - backtracking routes match an exhaustive search;
   - all 20 planted defects were either detected or explained as equivalent.
 
-  **These are claims made by the tool itself.** They are to be reproduced by the team (`ctest`, `tools/mutation_test.py`, `experiments`) before being relied upon.
+  **These are historical claims made by the tool itself.** The current archive has since evolved. The fresh verification below tests the current archive, not the original 26 October snapshot.
 - **Limitations stated by the tool:** see `DESIGN_DECISIONS.md` §3. In particular, the traffic rules are a heuristic with no proof that every congestion situation resolves, and the route planner does not account for other robots.
-- **Verification performed by the team:** _(each owner records the outcome of steps 1–7 for their module)_
-- **Problems identified:** _(to be completed)_
-- **Changes made:** _(to be completed)_
-- **Scores:** Accuracy _/5 · Completeness _/5 · Clarity _/5 · Relevance _/5
-- **Evidence:** _(to be completed)_
+- **Verification performed:** The 25 November archive was freshly built in Linux with GCC 14.2.0, Release mode, UI and experiments enabled, and warnings treated as errors. `ctest` passed all 6/6 test executables: ds 23/23, shop 14/14, navigation 24/24, picking 11/11, fulfilment 21/21, sim 7/7 (100/100 individual tests). `python3 tools/check_dependencies.py` returned `dependency check: OK`. This was a retrospective assistant-run check, not a claim that each member personally repeated all seven validation steps.
+- **Problems identified:** Later entries G3–G12 document missing tests, edge cases, endpoint handling and traffic/state defects; G13 documents a stale fulfilment mutation-script match. The original baseline's 360-run stress and 20-mutant claims have not been independently reproduced on the original snapshot.
+- **Changes made:** See G3–G12 for the team-recorded patches. G13–G15 add retrospective comparison evidence; no production code was changed in this log update.
+- **Scores (original baseline):** Accuracy NR · Completeness NR · Clarity NR · Relevance NR. The original source snapshot and complete response are not supplied; scoring a later revision as the original response would be misleading.
+- **Evidence:** Current-build commands: `cmake -S . -B build -DWH_BUILD_UI=ON -DWH_WARNINGS_AS_ERRORS=ON -DCMAKE_BUILD_TYPE=Release`, `cmake --build build`, `ctest --test-dir build --output-on-failure`, `python3 tools/check_dependencies.py`. The module-specific tests and CSV results in G3–G15 provide additional evidence for the later code. Owner hand traces and independent reviewer sign-offs remain unverified.
 
-## G2: Cross-check with a second tool, _(function)_ (example: WP-A, merge sort)
+## G2: Original merge-sort cross-check example (not an executed evaluation)
 
-- **Tool:** _(for example ChatGPT)_
-- **Prompt:** "Write a stable merge sort for std::vector in C++17 with a comparator, and state its time and space complexity."
-- **Comparison with `modules/ds/Sorting.hpp`:** _(Is the algorithm the same? Are ties handled in the same way, i.e. is it stable [L4]? Are the complexity claims correct?)_
-- **Test used as evidence:** `Sorting: merge, insertion and bubble sort are stable`, together with the mutant "merge takes from the RIGHT half on ties".
-- **Scores (second tool):** Accuracy _/5 · Completeness _/5 · Clarity _/5 · Relevance _/5
-- **Scores (Claude, same prompt):** Accuracy _/5 · Completeness _/5 · Clarity _/5 · Relevance _/5
-
-_(Entries G3, G4, … are added for each member. At least one entry per member is expected, and at least two different tools must be used across the team [B].)_
+- **Status:** The original log supplied an illustrative C++17 stable merge-sort prompt, but no actual second-tool response or scores were recorded. It is retained as a historical placeholder, not counted as an evaluation.
+- **Example prompt:** "Write a stable merge sort for std::vector in C++17 with a comparator, and state its time and space complexity."
+- **Related evidence:** `Sorting: merge, insertion and bubble sort are stable`; mutation `merge takes from the RIGHT half on ties`. See G14 / E13 for the actual data-structures comparison. No score is assigned to the example.
 
 ---
 ## G3: Shop checkout all-or-nothing test (WP-B)
@@ -82,7 +77,7 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 - **Verification performed:** Its code, saved unmodified, was compared with a plain BFS on 100,000 random grids (3x3 to 20x20, 0-45% walls) with ASan and UBSan on: 0 mismatches, including 16,106 unreachable cases, all reported "not found". Start = goal gives cost 0 and a one-cell path; a start or goal on a wall or out of bounds gives "not found". Compared line by line with `modules/navigation/Pathfinding.cpp`.
 - **Comparison with `Pathfinding.cpp`:** Same algorithm and heuristic; the tie-break is equivalent (larger g versus smaller h). Stale entries: ChatGPT skips entries with `g != gScore` (cells can be reopened), while the project uses a `closed[]` flag that relies on a consistent heuristic. ChatGPT rejects a start or goal on a wall; `aStarPath` does not check this (a path from a shelf cell is found). ChatGPT has no blocked-cell mask; the project has one, with the goal exempt. ChatGPT's path includes the start cell; the project's does not.
 - **Problems identified:** Step 3 of its proof does not state that a node on the optimal path is on the open list with its optimal g. It adds an unrequested exam-tips section and an offer of a practice exercise.
-- **Changes made:** None to its code. Finding for the project: add start/goal validation to `aStarPath` (planned, with a test first).
+- **Changes made:** None to its code. Finding for the project: add start/goal validation to `aStarPath` (planned at the time; subsequently fixed with tests in G9).
 - **Complexity and data structures:** Both are A* with a binary-heap open list and Manhattan distance, with time O(V log V) (the project's header says O(E log V), the same since E ≤ 4V) and space O(V); ChatGPT states both bounds without being asked and they match. The project uses the course's own `ds::MinHeap` and flat per-cell arrays, ChatGPT uses `std::priority_queue` and nested vectors of pairs, so the big-O is the same and only the data-structure choice differs.
 - **Scores (ChatGPT):** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 4/5
 - **Scores (Claude, same prompt, project code):** Accuracy 5/5 · Completeness 4/5 · Clarity 5/5 · Relevance 5/5
@@ -131,8 +126,8 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
   - The first version of the experiment was named E9, which a teammate had already taken. I renamed it to E10.
   - The tool-supplied `plot_results.py` was built from an older copy and would have deleted a teammate's E8 plotting code, so only the E10 function was pasted in.
   - 2-opt does not always reach the optimum: it matches exact in 100/100 trips at k=1 but only 26/100 at k=10 (gap 10.3%). It is a heuristic, not a replacement for exact search.
-- **Changes made:** added E10 to `experiments.cpp`, an E10 plot to `plot_results.py`, and `e10_route_improvement.csv` and `e10_route_improvement.png` to `experiments/results/`. No navigation source files were changed. <add anything you edited by hand>
-- **Scores:** Accuracy <4>/5 · Completeness <4>/5 · Clarity <4>/5 · Relevance <5>/5
+- **Changes made:** added E10 to `experiments.cpp`, an E10 plot to `plot_results.py`, and `e10_route_improvement.csv` and `e10_route_improvement.png` to `experiments/results/`. No navigation source files were changed.
+- **Scores:** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 5/5
 - **Evidence for the scores:**
   - Accuracy: the output compiled and ran first time, and my Codespace run reproduced every route length; deduction because the first plot script would have removed E8 and the experiment name clashed with E9.
   - Completeness: compares three methods on the same 100 trips for k=1..10 with CSV and chart; deduction because it only tests one local search (2-opt plus side change) and does not try Held-Karp or other improvements.
@@ -148,7 +143,7 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 - **Verification performed:** I ran E14 in a Codespace: the route lengths, node counts and state counts are identical to the tool's own run (only microseconds differ). Both methods gave the same length on all 1,040 trips with both methods (k = 1 to 12), 0 mismatches, and the exact lengths for k <= 10 equal the exact column of E4. One untimed run fills the DistanceTable cache first so both methods are timed on lookups only.
 - **Problems identified:** The tool first suggested raising `exactLimit` above 8. I checked `tripCapacityUnits` (`core/Config.hpp:35`, enforced in `JobManager.cpp:207`) and it is 8, so trips never exceed 8 shelves and are already planned exactly; the suggestion would change no route. Timings at k = 1 to 4 are a few microseconds and noisy. For k = 11 to 14 only 20 trips were used, each k with a different sample.
 - **Changes made:** added E14 to `experiments.cpp`, its plot to `plot_results.py`, and `e14_heldkarp.csv` / `e14_heldkarp.png` to `experiments/results/`. No navigation source files were changed. Conclusion: Held-Karp is 17x faster at k = 8 and 68x at k = 10 with identical routes, but the module needs no change; it is a future improvement if the trip capacity is raised.
-- **Scores:** Accuracy <4>/5 · Completeness <4>/5 · Clarity <4>/5 · Relevance <4>/5
+- **Scores:** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 4/5
 - **Evidence for the scores:**
   - Accuracy: ran first time, my Codespace run reproduced every length and count, 0 mismatches over 1,040 trips; one point off because the first recommendation (raise `exactLimit`) was wrong for this project and had to be corrected after I checked the code.
   - Completeness: compares two exact methods for k = 1 to 14 with CSV and chart; one point off because k >= 11 uses only 20 trips and Held-Karp was not added to the module or its tests.
@@ -168,7 +163,7 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
   - E4 route results are identical before and after the change; `check_dependencies.py` passes.
 - **Problems identified:** The rule for a non-walkable start (reject it) was the tool's design choice, copied from `DistanceTable`; I confirmed it with the caller check above, since a wrong rule could have stopped a robot from planning.
 - **Changes made:** applied the patch with the tool's script, then removed the helper files; no other source files changed.
-- **Scores:** Accuracy <4>/5 · Completeness <4>/5 · Clarity <4>/5 · Relevance <5>/5
+- **Scores:** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 5/5
 - **Evidence for the scores:**
   - Accuracy: the tests failed before and passed after, and all 3 new mutants are caught; one point off because the design choice for non-walkable starts needed my caller check.
   - Completeness: fixes both defects with tests and mutants; F1 (wrong line numbers in `GridMap` errors) is still open.
@@ -193,8 +188,8 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 - **Output produced:** `experimentMemoisation()` (E15), which runs one exact route search three ways (a BFS for every question, a cold `DistanceTable` per trip, one warm `DistanceTable` for the whole run), plus `plot_memoisation()` and the `memo` dispatch key.
 - **Verification performed:** I ran E15 in a Codespace: the question counts and BFS counts are identical to the tool's own run (only microseconds differ), and all three methods gave the same route length on every trip (0 mismatches).
 - **Problems identified:** `RoutePlanner` is hard-wired to `DistanceTable`, so the experiment uses its own exact search (Held-Karp) as the workload rather than the planner itself. k = 7 and 8 use only 20 trips, and k = 1 to 3 timings are tiny and noisy.
-- **Changes made:** added E15 to `experiments.cpp` and `plot_results.py`, with `e15_memoisation.csv` and `e15_memoisation.png`. No navigation source files changed. Conclusion: the cache is about 500x faster than no memo at k = 8 (about 1,600x when warm), so the design is justified.
-- **Scores:** Accuracy <4>/5 · Completeness <4>/5 · Clarity <4>/5 · Relevance <4>/5
+- **Changes made:** added E15 to `experiments.cpp` and `plot_results.py`, with `e15_memoisation.csv` and `e15_memoisation.png`. No navigation source files changed. Conclusion (current archived CSV, ratio of mean times): at k = 8 the cache is about 539x faster when cold and 2,056x when warm (316,021.895 µs without memoisation, 586.650 µs cold, 153.685 µs warm). The earlier rounded estimates were 500x and 1,600x; the design conclusion is unchanged.
+- **Scores:** Accuracy 4/5 · Completeness 4/5 · Clarity 4/5 · Relevance 4/5
 - **Evidence for the scores:** Accuracy: my run reproduced all counts with 0 mismatches; one point off because the workload is a stand-in for the planner. Completeness: three arms for k = 1 to 8, but fewer trips at k = 7 and 8. Clarity: commented and in the style of E4. Relevance: it measures a design choice WP-C already made.
 
 ## G12: Code review, bug fixes and extra tests for WP-D picking
@@ -227,19 +222,216 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
   - Clarity: inline comments and file/line citations clearly explain every change.
   - Relevance: strictly respected the module boundary (only `modules/picking` touched) and directly targeted WP-D's state machine and traffic controller.
 
+---
+
+## G13: Fulfilment module cross-check — robot assignment, charging and memory (E11 and E12, WP-E)
+
+- **Date / member / work package:** Sam / WP-E (`modules/fulfilment`) / results in the 25 November 2026 archive; original experiment date and exact prompt date not recorded. The WP-E ownership is documented in the root README.
+- **Tools and versions:** OpenAI Codex and Anthropic Claude. Exact model versions are not recorded for these runs.
+- **Prompt (reconstructed task summary, not a quotation):** Compare alternative AI-generated improvements to the warehouse fulfilment module against the existing scheduling algorithm; examine whether the alternatives improve order completion, travel distance, charging decisions, code quality and memory use. Original prompts and responses are not included in this archive.
+- **Output produced (as documented in the experiment results):**
+  - Baseline `base_first_available`: assign the first available robot.
+  - Baseline `base_nearest`: select the robot closest to an access cell of any required shelf. This is the nearest-robot policy in the current `modules/fulfilment/JobManager.cpp` (`chooseRobot`).
+  - Codex `codex_shortest_trip`: choose a candidate using the planned complete trip, including delivery to the sorter, instead of only the closest shelf. Recorded build switch: `WH_FULFILMENT_SHORTEST_TRIP`.
+  - Claude `claude_attempt_defer_charging`: defer immediate charging of skipped robots during assignment and use a charging fallback when no robot can take the trip. Recorded switch: runtime `setDeferCharging` plus build default `WH_FULFILMENT_DEFER_CHARGING`.
+  - These are different scheduling improvements to the same module, not identical algorithms. The two baseline policies are controls, not additional AI responses in this evaluation.
+
+### Verification evidence — E11: performance, test coverage and code complexity
+
+The archived `e11_all_results.csv` contains 6 scenarios × 4 policies × 50 seeds = **1,200 simulation runs** (10,800 raw metric rows). The scenarios cover 60–200 orders, 3–8 robots, greedy/backtracking routing and obstacles enabled/disabled. Across all policies, 130,000 of 130,000 orders were completed and zero collisions were recorded. This is evidence for the tested conditions, not a guarantee of safety or liveness on all possible maps.
+
+| S1: 80 orders, 8 robots, backtracking, obstacles | Mean distance (cells) | Mean completion (ticks) | Mean lead time (ticks) |
+|---|---:|---:|---:|
+| First available (baseline) | 4,216.92 | 707.72 | 356.946 |
+| Nearest (baseline) | 4,221.64 | 717.88 | 352.612 |
+| Codex: complete-trip scoring | 4,195.46 | 707.92 | 350.346 |
+| Claude: defer charging | 4,215.72 | 714.94 | 352.548 |
+
+Codex reduced mean distance by about 0.62% and completion time by 1.39% relative to the nearest baseline in S1. Claude reduced them by about 0.14% and 0.41%, respectively. The paired tests for Codex against nearest report nominal completion-time p-values of 0.0351 (S1) and 0.0439 (S5); the other four scenarios do not reach 0.05. These are exploratory tests without a documented multiple-comparison adjustment; they do not establish a universal or statistically robust advantage. First available was also slightly faster than Codex on S1 mean completion time, although its mean lead time was longer.
+
+| Recorded code / test metric | Nearest baseline | Codex | Claude |
+|---|---:|---:|---:|
+| Fulfilment `TEST_CASE` count | 21 | 22 | 23 |
+| `chooseRobot` non-comment lines of code | 19 | 35 | 19 |
+| `chooseRobot` cyclomatic complexity | 8 | 14 | 8 |
+| `dispatchTrips` non-comment lines of code | 53 | 53 | 60 |
+| `dispatchTrips` cyclomatic complexity | 18 | 18 | 20 |
+| Variant-specific mutants caught by own suite | — | 2/4 | 4/5 |
+| Same variant-specific mutants caught by baseline suite | — | 2/4 | 0/5 |
+
+Mutation sets differ, so the percentages are not a like-for-like ranking. Codex tests caught choosing the longest route and excluding the sorter leg. The FirstAvailable-policy mutant and changed tie-breaking survived (the latter may be equivalent unless the tie rule is a requirement). Claude tests caught four charging-related defects, but the mutant that does not return skipped robots to the idle pool survived. Surviving mutants indicate possible test gaps, not proof that the unmutated code contains those defects.
+
+### Verification evidence — E12: memory and space overhead
+
+`e12_all_results.csv` contains full-simulation memory measurements for four order-count settings (three variants × ten seeds at each setting) and dispatch microbenchmarks. Measurements distinguish peak live heap, cumulative allocated bytes, allocation count and peak resident set size (RSS). Heap measurements use a malloc shim; RSS is recorded using `wait4` / `ru_maxrss` according to the archive.
+
+| Full simulation: 400 orders, 8 robots, backtracking (mean of 10 seeds) | Nearest baseline | Codex | Claude |
+|---|---:|---:|---:|
+| Peak live heap (bytes) | 1,889,796.0 | 1,880,541.6 | 1,886,648.0 |
+| Cumulative allocation (bytes) | 26,139,092.8 | 26,409,185.6 | 26,153,056.8 |
+| Allocation count | 353,676.4 | 361,938.0 | 353,205.3 |
+| Peak RSS (KB, as recorded) | 11,632 | 11,632 | 11,632 |
+| `sizeof(JobManager)` (bytes) | 232 | 232 | 240 |
+| `JobManager.o` size (bytes) | 61,072 | 61,648 | 62,793 |
+
+The three variants have very similar peak memory in this scenario. Codex reduced peak live heap slightly (about 0.49%) but increased cumulative allocations and allocation count. Claude added 8 bytes to `JobManager`; object-file size increased by 2.82% compared with 0.94% for Codex. These binary and heap sizes are build/platform dependent and are not asymptotic space-complexity bounds.
+
+The dispatch microbenchmark also covers 50, 100, 200 and 400 pending orders at starting battery levels of 100% and 45%, with ten seeds per variant and setting (240 runs). At 400 pending orders and 45% battery, the mean extra peak heap during update is 73,498.4 bytes (nearest), 66,000.0 bytes (Codex) and 73,500.0 bytes (Claude). Codex uses about 10.2% less temporary peak memory in this particular dispatch test, but that does not imply a similar improvement in the entire simulation.
+
+### Evaluation and decision
+
+- **Problems / limitations identified:** Codex repeats full route evaluation for candidates and increases the complexity of `chooseRobot`; its performance improvement is small and scenario dependent. Claude adds charging-state/dispatch logic and has an uncovered idle-pool restoration mutant. Neither variant demonstrates a material peak-memory improvement at 400 orders. The full external comparison harness and alternative source snapshots are absent from the archive; the CSV records outcomes rather than a complete independent reproducibility package.
+- **Changes made:** The current project still contains nearest-shelf selection (or FirstAvailable) and immediate charging of a robot with insufficient energy for the trip. Neither experimental variant is present as a selectable implementation in the archived `JobManager.cpp`. No new production-code modification is claimed here. Recommended decision: retain the simpler baseline; consider Codex's complete-trip scoring only if gains justify the extra complexity, and improve charging/policy tests before adoption.
+- **Proposed scores (Codex, pending owner approval):** Accuracy 4/5 P · Completeness 4/5 P · Clarity 4/5 P · Relevance 4/5 P.
+- **Proposed scores (Claude, pending owner approval):** Accuracy 4/5 P · Completeness 4/5 P · Clarity NR · Relevance 4/5 P.
+- **Evidence for the proposed scores:**
+  - Accuracy: all archived scenarios complete without reported collisions for both variants. A provisional 4 is conservative because the alternative code and hand traces are unavailable; no specific defect in the unmutated variants is established by these results.
+  - Completeness: both integrate an improvement and add tests, but Codex's policy mutant and Claude's idle-pool mutant expose gaps; no claim of complete edge-case coverage is justified.
+  - Clarity: Codex supplied 21 added/3 removed README lines and its main change is isolated in `chooseRobot`, but its complexity rose from 8 to 14; 4 is a tentative documentation/complexity-based rating, not a confirmed first-hand readability review. Claude added no README lines in the recorded comparison; source/readability evidence is insufficient to give a defensible numerical clarity rating.
+  - Relevance: both address the reconstructed scheduling objective; the small gains and added complexity support a provisional 4 rather than an unqualified 5. Confirm against the actual original prompt.
+- **Evidence files:** `experiments/results/e11_all_results.csv` (sections `raw_run`, `summary`, `paired_test_vs_base`, `mutation_test`, `code_metric`, `table_E11`), `experiments/results/e12_all_results.csv` (sections `fullsim_raw`, `fullsim_summary`, `microbench_raw`, `microbench_summary`, `static_size` and paired-test sections), `experiments/results/plots/e11_results.png`, `e12_results.png`, `modules/fulfilment/JobManager.cpp`.
+
+### Current WP-E regression and mutation verification (fresh retrospective check)
+
+- Built the actual archived module and ran its tests: 21/21 passed, including priority/ageing, load balancing, weight and unit limits, nearest versus first-available assignment, charging, stable packing and order completion. Full project: 100/100 tests passed (G1).
+- Ran the repository mutation script for fulfilment. Three mutations were caught by the unit suite: reverse backlog urgency, always assign the first sorter, and replace stable packing merge sort with quicksort. The fourth was **skipped**, not survived: the script's search string no longer matches the current `std::max(1, config_.tripCapacityUnits)` capacity expression in `JobManager.cpp`.
+- Applied the equivalent corrected capacity mutant temporarily to the extracted working copy (`<` to `<=` in that expression). It compiled and failed `JobManager: trips never exceed the item or weight capacity` at `test_fulfilment.cpp:292` (20/21 pass). Restored the source and rebuilt. Thus all four intended baseline mutants were detected by tests when applied, but the committed script still needs its outdated match string updated. No source or script change is included in this deliverable.
+- The fresh baseline results do not reproduce the missing E11/E12 variant harnesses, nor do they constitute personal owner/reviewer sign-off.
+
+### Supporting fulfilment experiments (E6 and E7)
+
+These are algorithm-validation evidence for WP-E, not additional independently attributed AI responses. E6 compares three routing and two assignment policies for 80 orders and eight robots over ten seeds per combination (60 runs). As-given/first-available averages 5,668.7 moves and 900.2 ticks; backtracking/nearest averages 4,222.3 moves and 693.0 ticks (25.52% fewer moves and 23.02% fewer completion ticks). The much larger benefit comes from routing rather than assignment alone. E7 (`experimentFulfilment`, command `fulfilment`) compares urgency-order first-fit, weight-descending first-fit and an exact minimum-trip backtracking reference for a two-constraint packing problem. In `e7_fulfilment.csv`, all 24,000 pools have `capped=0`; first-fit matched the exact minimum in 23,220/24,000 pools (96.75%), versus 21,182/24,000 (88.26%) for first-fit decreasing. This supports the current urgency-order greedy method on the tested workload. The configured trip limit is 8 units and 12 kg (`modules/core/Config.hpp`); E7's synthetic workload explores additional payload settings. Do not confuse E7's packing comparison with the archived E11/E12 AI scheduling comparison. The original AI prompt and authorship for E6/E7 are not established by their CSVs.
+
+---
+
+## G14: Data structures module cross-check — Claude versus Codex (E13, WP-A)
+
+- **Date / member / work package:** Experiment date not recorded / Marissa (WP-A owner; experiment authorship to confirm) / `modules/ds`.
+- **Tools and versions:** Anthropic Claude and OpenAI Codex; exact versions not recorded.
+- **Prompt (reconstructed task summary):** Compare independently generated implementations of the project's sorting, searching, linked queue and min-heap data structures, including correctness, time/space trade-offs, compatibility and test quality. Original prompts and responses are unavailable.
+- **Output produced:** Two replacement versions of `modules/ds`, compared in the same warehouse project. Claude has more course-linked functions and comments; Codex supports move-only types, a real queue move constructor, `emplace` and merge sort without a default-constructor requirement. These features are recorded in E13; do not assume they are present in the current production module.
+- **Verification performed (archived results):** Both variants built with warnings as errors, passed 6/6 module test executables and built the UI. The neutral correctness harness recorded 1,780 sorting, 6,256 binary-search, 605 heap and 308 queue checks passed by each variant (8,949 total each), and no ASan/UBSan/leak errors. Claude passed its 23 tests and Codex its 4. Codex could not compile Claude's suite because of missing interfaces (`isValidHeap`, `items`, `binarySearchRecursive`, `detail::partition`); Claude passed Codex's 4 tests.
+
+| Comparison | Claude | Codex |
+|---|---:|---:|
+| Quicksort comparisons, all-equal n=10,000 | 50,024,997 | 127,072 |
+| Quicksort comparisons, random n=10,000 | 153,635 | 178,589 |
+| Quicksort comparisons, reversed n=10,000 | 236,088 | 125,452 |
+| Heap push/pop n=1,000,000 integers, median ms | 143.7758 | 110.9896 |
+| Binary search max comparisons, n=1,000,000 | 20 | 20 |
+| Header comment lines / non-blank lines | 149/440 (33.9%) | 8/196 (4.1%) |
+
+- **Problems identified:** Codex's `MinHeap::emplace(5)` on heap `{1}` returns a reference to the top (1) instead of the inserted value (5), a likely interface defect identified by the feature probe, not used in the current warehouse. Claude's duplicate-heavy quicksort performs much more work (about 394x as many comparisons on 10,000 equal values) and it lacks several modern C++ features; these are design trade-offs, not automatically correctness defects. Timing results are machine-specific; the archive uses medians of three alternating runs, treating differences within 15% as ties for time results.
+- **Changes made / decision:** No adoption of the Codex alternative is documented by E13. Keep the teaching-oriented implementation and test coverage; consider duplicate-aware quicksort and modern queue improvements separately, with regression tests and review of heap semantics. No overall winner is established.
+- **Proposed scores (Claude):** Accuracy 4/5 P · Completeness 4/5 P · Clarity 4/5 P · Relevance 4/5 P.
+- **Proposed scores (Codex):** Accuracy 3/5 P · Completeness 3/5 P · Clarity 3/5 P · Relevance 4/5 P.
+- **Evidence for the proposed scores:** Accuracy: both pass the neutral checks; Claude is provisionally rated 4 pending source/hand trace; the Codex `emplace` counterexample supports 3 if the intended contract is to return the inserted item. Completeness: Claude has broader tests and course-linked APIs but lacks move-only support; Codex has fewer tests and missing existing interfaces (not all may have been specified in the original task). Clarity: Claude's greater documentation and course-linked functions support a tentative 4; Codex's 4.1% comment density and compressed code support a tentative 3, pending actual readability review. Relevance: both address the inferred module objective; Claude fits the teaching interfaces and Codex provides stronger duplicate-input performance, but neither is an unqualified drop-in improvement. Verify ratings against the original task.
+- **Evidence files:** `experiments/results/e13_ds_comparison.csv` (`integration`, `own_tests`, `neutral_correctness`, `features`, `sorting_comparisons`, `structures_time`, `sorting_time`, `code_metrics`, `verdict`), `experiments/results/plots/e13_ds_comparison.png`. E1 sorting and E2 search provide supporting baseline data, not separate AI scores.
+
+---
+
+## G15: Picking and traffic module cross-check — Claude versus Gemini (E16 and E17, WP-D)
+
+- **Date / member / work package:** Experiment date not recorded / Raelyn (WP-D owner; experiment authorship to confirm) / `modules/picking`.
+- **Tools and versions:** Anthropic Claude and Google Gemini; exact versions not recorded.
+- **Prompt (reconstructed task summary):** Compare AI-generated picking/traffic implementations for integration, safety-related invariants, congestion and deadlock handling, algorithmic complexity and memory overhead. Original prompts and responses are unavailable.
+- **Output produced:** Two implementations of the picking robot state machine, battery/dock handling and traffic control. Both use A*, greedy traffic rules, insertion sort for mover priority and seeded side-stepping; their sub-operations differ in path storage, queries, obstacle-mask handling and side-step selection.
+- **Verification performed (archived E16):** Both compiled with warnings as errors (GCC 14.2), passed dependency layering, passed 6/6 module test executables (including 11/11 picking tests and the 48-run simulation stress test) and caught 3/3 picking mutants. Gemini passed all six extra robustness probes; Claude passed none of those six. The probes concern invalid dock construction, reservation safety, invalid trip stops/IDs, same-cell moves, double counting of a wait and a move, and charging at near-zero battery at the assigned dock.
+
+| Scenario / metric | Claude | Gemini |
+|---|---:|---:|
+| Corridor length 7: seeds resolved within 600 ticks | 50/50 | 28/50 |
+| Corridor length 7: recorded mean ticks | 25.0 | 279.68 |
+| Corridor length 13: seeds resolved within 600 ticks | 50/50 | 28/50 |
+| Corridor length 13: recorded mean ticks | 31.0 | 283.04 |
+| Heavy-obstacle 200-order stress: mean makespan (ticks) | 1,648.40 | 1,679.93 |
+| Heavy-obstacle stress: mean waits | 422.67 | 562.60 |
+| 1,000 path queries, path length 256: allocation count (incl. setup) | 1,001 | 1 |
+| 1,000 path queries, path length 256: measured time (µs) | 169.3 | 54.7 |
+
+All 15 seeds per recorded stress scenario completed without collisions for both. In contrast, the targeted corridor tests expose Gemini's weaker liveness heuristic; 22/50 trials per corridor length did not resolve within the cutoff. The archived mean ticks are reported as recorded; they must not be interpreted as successful-only means without the missing harness definition.
+
+### E17: theoretical time and space comparison (not an additional AI response)
+
+| Operation | Claude | Gemini |
+|---|---|---|
+| Advance one cell along a planned path | O(1) cursor increment | O(L) vector front erase |
+| Return `plannedPath()` | O(L) time and temporary storage (copy) | O(1) time and extra space (reference) |
+| Query `unitsOnTrip()` | O(k) linked-queue scan | O(1) cached count; extra stored state |
+| Mark robot cells for a detour | O(V) occupancy scan | O(R) robot scan |
+| Path-aware/random side-step | O(L) path-aware filtering | O(1) bounded-neighbour selection |
+| Overall per tick (E17 model) | O(V + R² + R·L + r·V log V) | Same asymptotic bound |
+
+Here V is grid cells, R is picking robots, L is remaining path length, k is trip stops, and r is replans in a tick. E17 records the same overall space bound O(V + R·L + R·(k + u)), where u is trip units. Both retain the same first-order complexity; Gemini is cheaper for several queries, while Claude's cursor advancement and more informed side-step rule have benefits. E17 counts 6 Gemini-favoured, 2 Claude-favoured and 6 tied sub-operations by complexity; this is not a correctness or overall quality score. The empirical corridor outcome shows why lower per-operation complexity alone does not establish a better traffic algorithm.
+
+- **Problems identified:** Claude lacks the six extra defensive behaviours measured in E16; Gemini can fail to resolve the corridor scenario within the time limit, and its vector front erase shifts remaining elements. Extremely small cached-count timings may be sensitive to compiler optimisation; do not infer an exact speed-up from zero/near-zero measurements.
+- **Changes made / decision:** No adoption of the Gemini alternative is documented. Prefer the path-aware traffic heuristic for congestion handling, while considering Gemini's defensive checks and allocation-saving query implementations individually. Confirm any source changes through the picking and simulation regression suites; no production change is claimed by this log entry.
+- **Proposed scores (Claude):** Accuracy 3/5 P · Completeness 3/5 P · Clarity NR · Relevance 4/5 P.
+- **Proposed scores (Gemini):** Accuracy 3/5 P · Completeness 4/5 P · Clarity NR · Relevance 4/5 P.
+- **Evidence for the proposed scores:** Accuracy: both pass the normal integration suite, but Claude misses defensive behaviours and Gemini's corridor liveness limitation is substantial in a targeted scenario. Completeness: Claude misses six explicit probes; Gemini covers those six but does not consistently resolve a tested congestion case. Clarity cannot be scored defensibly from timing and complexity tables alone. Relevance: both tackle the inferred picking task, but the safety/efficiency trade-offs require review against the original prompt and actual project contracts. These are provisional ratings, not member sign-offs.
+- **Evidence files:** `experiments/results/e16_picking_comparison.csv` (`integration`, `robustness_probes`, `corridor_deadlock`, `e5_fleet_scaling`, `stress_scenarios`, `micro_time_B*`, `micro_space_B*`), `experiments/results/e17_algorithms_complexity_comparison.csv`, `experiments/results/plots/e16_picking_comparison.png`, `e17_algorithms_complexity_comparison.png`. E5 fleet-size scaling is supporting baseline evidence, not a separate AI response.
+
+---
+
+## Experiment-to-log traceability
+
+The experiment numbers below follow the CSV filenames in the current archive, not earlier draft numbering. `experiments/experiments.cpp` exposes E1–E10, E14 and E15 through its command-line dispatch. E11, E12, E13 and E16 are archived external comparison results; E17 is an archived analytical complexity table. The external comparison programs are not included, so `experiments all` does not regenerate those five files. CSV and plot evidence is present for all 17 experiment numbers. Experiment numbers and GenAI entry numbers are separate identifiers.
+
+| Experiment | Module / work package | Purpose | GenAI record / evidence status |
+|---|---|---|---|
+| E1 | Data structures / WP-A | Sorting growth | G1 baseline; G14 comparative support; original specific AI prompt not recorded |
+| E2 | Shop / WP-B | Linear vs binary search | G1 baseline; G10 related catalogue cross-check |
+| E3 | Navigation / WP-C | BFS vs A* | G4, G5, G9 |
+| E4 | Navigation / WP-C | Greedy vs exact routes | G7, G8, G9 related verification |
+| E5 | Picking / WP-D | Fleet scaling | G12 and G15 supporting baseline |
+| E6 | Fulfilment / WP-E | Routing and robot selection policies | G13 supporting baseline |
+| E7 | Fulfilment / WP-E | Trip filling and exact packing | G13 supporting validation; distinct from E11/E12 |
+| E8 | Shop / WP-B | Lookup trees and insertion order | Experiment result present; no separate AI evaluation recorded |
+| E9 | Shop / WP-B | Substring search | G6 |
+| E10 | Navigation / WP-C | Greedy + 2-opt | G7 |
+| E11 | Fulfilment / WP-E | Claude vs Codex scheduling | G13 |
+| E12 | Fulfilment / WP-E | Claude vs Codex memory | G13 (same variants, additional evidence) |
+| E13 | Data structures / WP-A | Claude vs Codex module comparison | G14 |
+| E14 | Navigation / WP-C | Held-Karp vs backtracking | G8 |
+| E15 | Navigation / WP-C | DistanceTable memoisation | G11 |
+| E16 | Picking / WP-D | Claude vs Gemini module comparison | G15; G12 is the distinct Gemini code-review entry |
+| E17 | Picking / WP-D | Analytical complexity comparison | G15 (same variants, additional evidence) |
+
 ## Summary table (for the report)
 
 | Entry | Member | Tool | Task | Acc. | Comp. | Clar. | Rel. | Principal finding |
 |-------|--------|------|------|-----:|------:|------:|-----:|-------------------|
-| G1 | | Claude | Complete code base | | | | | |
-| G2 | | | | | | | | |
+| G1 | Team leader | Claude | Original code base | NR | NR | NR | NR | Current revision builds; 100/100 tests pass; original response not available for scoring |
+| G2 | — | — | Historical example only | — | — | — | — | Not an executed evaluation; excluded from totals |
 | G3 | Kavin | Claude | Shop checkout test (WP-B) | 4 | 4 | 4 | 5 | No code defects; added missing all-or-nothing checkout test |
-| G4 | liyou | ChatGPT | A* cross-check (WP-C) | 4 | 4 | 4 | 4 | Code correct (0 mismatches on 100,000 grids); validates start/goal, which `aStarPath` does not |
+| G4 | liyou | ChatGPT | A* cross-check (WP-C) | 4 | 4 | 4 | 4 | 0 mismatches on 100,000 grids; endpoint validation gap in earlier code fixed in G9 |
+| G4 | liyou | Claude | A* cross-check (earlier code) | 5 | 4 | 5 | 5 | Original member rating; endpoint validation gap later fixed in G9 |
 | G5 | liyou | Claude | Extra tests and mutants (WP-C) | 4 | 4 | 4 | 5 | 3 test gaps closed: 21/21 tests, 0 mutation surprises |
 | G6 | Kavin | Claude | E9 search-box experiment (WP-B) | 3 | 4 | 4 | 5 | First version had a suffix-comparison bug caught by the results check; current search is good enough for 91 products |
 | G7 | liyou | Claude | E10: greedy + 2-opt vs exact routes | 4 | 4 | 4 | 5 | 2-opt cuts greedy's gap from 25.9% to 10.3% at k=10 in microseconds, but is exact in only 26/100 trips |
 | G8 | liyou | Claude | E14: Held-Karp vs backtracking exact routes | 4 | 4 | 4 | 4 | Same optimal routes; Held-Karp 17x faster at k = 8, 68x at k = 10, but trips never exceed 8 shelves, so no change needed |
 | G9 | liyou | Claude | Fix F2 + F5 in Pathfinding.cpp | 4 | 4 | 4 | 5 | BFS and A* now agree on blocked goals and reject non-walkable start/goal; 3 tests and 3 mutants added |
 | G10 | Kavin | ChatGPT | Catalogue cross-check (WP-B) | 5 | 4 | 4 | 4 | Same results on 91 products; hash map 4-5x faster per lookup but uses more memory; same search-box scan |
-| G11 | liyou | Claude | E15: DistanceTable memoisation | 4 | 4 | 4 | 4 | The cache is about 500x faster than BFS per question at k = 8 (1,600x when warm) |
-| G12 | | Gemini (Antigravity) | Code review, bug fixes and tests (WP-D) | 4 | 5 | 5 | 5 | Fixed stale blocker after detour, missing longestWait update, and flat-battery isAvailable()/isBusy() bug; 11/11 tests pass |
+| G11 | liyou | Claude | E15: DistanceTable memoisation | 4 | 4 | 4 | 4 | The archive shows about 539x cold and 2,056x warm versus repeated BFS at k = 8 |
+| G12 | raelyn | Gemini (Antigravity) | Code review, bug fixes and tests (WP-D) | 4 | 5 | 5 | 5 | Fixed stale blocker after detour, missing longestWait update, and flat-battery isAvailable()/isBusy() bug; 11/11 tests pass |
+| G13 | Sam (WP-E owner) | Codex | E11/E12: full-trip assignment | 4 P | 4 P | 4 P | 4 P | Small S1 gains; 2/4 own mutants caught; similar peak memory |
+| G13 | Sam (WP-E owner) | Claude | E11/E12: defer charging | 4 P | 4 P | NR | 4 P | 4/5 own mutants caught; modest gains; similar peak memory |
+| G14 | Marissa (WP-A owner) | Claude | E13: data structures | 4 P | 4 P | 4 P | 4 P | Neutral tests pass; stronger documentation/tests, weak duplicate quicksort |
+| G14 | Marissa (WP-A owner) | Codex | E13: data structures | 3 P | 3 P | 3 P | 4 P | Duplicate-aware quicksort; likely `emplace` defect; missing interfaces |
+| G15 | Raelyn (WP-D owner) | Claude | E16/E17: picking | 3 P | 3 P | NR | 4 P | 50/50 corridor resolution; misses six extra defensive probes |
+| G15 | Raelyn (WP-D owner) | Gemini | E16/E17: picking | 3 P | 4 P | NR | 4 P | Six extra probes pass; 28/50 corridor resolution; cheaper queries |
+
+**Score status:** Plain numbers are member-recorded evaluations carried forward from the supplied log; `P` denotes a proposed retrospective rating supported by archived evidence but requiring the owner to review and approve it. `NR` means not rateable with the material available (not a zero). A dash denotes not applicable. G4 records two responses, and G12 is distinct from G15. E12 and E17 are supporting analyses, not additional AI responses by themselves. There are 11 recorded historical numerical response evaluations (G3–G12, including both G4 responses), and six retrospective comparative responses (G13–G15). Do not include provisional or unavailable scores in an average of member-recorded ratings.
+
+## Completion and evidence status
+
+| Work package | Owner (root README) | Recorded evidence | Outstanding confirmation |
+|---|---|---|---|
+| WP-A – data structures | Marissa | G14, E1, E13 | Original prompts, variant source, scores, owner/reviewer sign-off |
+| WP-B – shop | Kavin | G3, G6, G10; E2, E8, E9 | E8-specific AI usage not recorded; sign-off not evidenced |
+| WP-C – navigation | liyou | G4, G5, G7–G9, G11; E3, E4, E10, E14, E15 | Owner/reviewer sign-off not evidenced |
+| WP-D – picking | Raelyn | G12 and G15; E5, E16, E17 | G15 prompt/source/ratings and owner confirmation; sign-off not evidenced |
+| WP-E – fulfilment | Sam | G13; E6, E7, E11, E12; 21/21 regression tests; four intended baseline mutants caught when applied | Original comparison prompts and tool versions; missing alternative sources/harnesses; approve proposed scores and resolve clarity NR; update stale mutation-script match; owner/reviewer sign-off |
+| WP-F – integration | Calix | G1 baseline, current 100/100 tests, UI build and dependency check; all experiment CSVs | No attributable separate AI prompt/response or evaluation in the supplied log; record it if used, and complete owner/reviewer sign-off |
+
+The project has documented use of more than two AI tools (Claude, ChatGPT/Codex and Gemini), and every experiment E1–E17 is traced above. The log is complete as a record of the supplied evidence, including the latest member additions and the retrospective experiment comparisons. It does not invent original prompts, exact model versions, personal hand traces or missing sign-offs. The external E11–E13/E16 alternative implementations and comparison harnesses are not in the archive; E17 is an analytical result. Those experiments have been audited from their CSVs, not independently rerun. For a final owner-approved submission, recover the original outputs where possible and complete the outstanding confirmations in `VALIDATION_GUIDE.md`. No source code or persistent repository files were changed by this documentation update.
