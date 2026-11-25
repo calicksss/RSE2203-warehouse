@@ -154,6 +154,7 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
   - Completeness: compares two exact methods for k = 1 to 14 with CSV and chart; one point off because k >= 11 uses only 20 trips and Held-Karp was not added to the module or its tests.
   - Clarity: commented, follows the style of E4 and E10; chart and table are readable.
   - Relevance: it tests whether a better exact algorithm would improve the program; the answer (no change needed at capacity 8) is itself useful for justifying the current design.
+  
 ## G10: Cross-check with a second tool, product catalogue (WP-B)
 
 - **Date / member / work package:** 25 November 2026 / Kavin / WP-B
