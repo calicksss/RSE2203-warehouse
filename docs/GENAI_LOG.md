@@ -328,15 +328,58 @@ These are algorithm-validation evidence for WP-E, not additional independently a
 - **Evidence for the proposed scores:** Accuracy: both pass the neutral checks; Claude is provisionally rated 4 pending source/hand trace; the Codex `emplace` counterexample supports 3 if the intended contract is to return the inserted item. Completeness: Claude has broader tests and course-linked APIs but lacks move-only support; Codex has fewer tests and missing existing interfaces (not all may have been specified in the original task). Clarity: Claude's greater documentation and course-linked functions support a tentative 4; Codex's 4.1% comment density and compressed code support a tentative 3, pending actual readability review. Relevance: both address the inferred module objective; Claude fits the teaching interfaces and Codex provides stronger duplicate-input performance, but neither is an unqualified drop-in improvement. Verify ratings against the original task.
 - **Evidence files:** `experiments/results/e13_ds_comparison.csv` (`integration`, `own_tests`, `neutral_correctness`, `features`, `sorting_comparisons`, `structures_time`, `sorting_time`, `code_metrics`, `verdict`), `experiments/results/plots/e13_ds_comparison.png`. E1 sorting and E2 search provide supporting baseline data, not separate AI scores.
 
----
 
-## G15: Picking and traffic module cross-check — Claude versus Gemini (E16 and E17, WP-D)
+## G15: Generate WP-D modules/picking implementation (Gemini)
+Date / member / work package: 25 November 2026 / Raelyn / WP-D
+Tool and version: Gemini (Google), Gemini 4 Carbon (Medium)
+Prompt (summary or link): "For WP-D, create a Battery.hpp, DockingStation.hpp, PickingRobot.hpp & PickingRobot.cpp, TrafficController.hpp & TrafficController.cpp, CMakeLists.txt and README.md in modules/picking" (with RSE2203-warehouse-main_wo_modules.zip attached).
+Output produced: All 8 WP-D files in modules/picking: Battery.hpp, DockingStation.hpp, PickingRobot.hpp/.cpp, TrafficController.hpp/.cpp, CMakeLists.txt, and README.md.
+Verification performed:
+Built the full project (including FTXUI wh_ui and Warehouse.exe) with MinGW GCC 14.2 and WH_WARNINGS_AS_ERRORS=ON: 0 warnings, 0 errors.
+Dependency check (tools/check_dependencies.py): passed (picking only includes core, ds, navigation, picking).
+Unit & integration tests (ctest): 6/6 suites passed (test_picking 11/11, test_sim 48-run stress test).
+Mutation testing (picking): 3/3 planted mutants caught (0 surprises).
+Headless run (Warehouse --headless 80): 80/80 orders completed in 733 ticks with 0 collisions.
+Problems identified: Later cross-tool benchmarking (G14) revealed three 2nd-order weaknesses compared with Claude's baseline: TrafficController::move used path.erase(path.begin()) (𝑂(𝐿)O(L) per move) instead of an 𝑂(1)
+O(1) index cursor; shelvesLeft() omitted reserve(), causing geometric reallocations; and sidestep() picked uniformly at random without filtering out the blocking robot's path, solving only 28/50 narrow-corridor seeds within 600 ticks (vs. Claude's 50/50).
+Changes made: None to the generated source files (kept unmodified for fair cross-tool comparison against Claude's WP-D implementation).
+Scores: Accuracy 4/5 · Completeness 5/5 · Clarity 5/5 · Relevance 5/5
+Evidence for the scores:
+Accuracy: compiled first try with -Werror, passed 6/6 test suites, 3/3 mutants, and 6/6 defensive invariant probes, but lost 1 point because uniform-random sidestep() stalled on 22/50 narrow-corridor seeds in G14.
+Completeness: delivered all 8 requested files, full state machine, technician recovery, argument validation, and README hand traces.
+Clarity: cleanly structured headers/sources with lecture references and no unused code.
+Relevance: matched all project interfaces (JobManager, Simulation, Views, test_picking, and mutation_test.py) without altering other modules.
 
-- **Date / member / work package:** Experiment date not recorded / Raelyn (WP-D owner; experiment authorship to confirm) / `modules/picking`.
-- **Tools and versions:** Anthropic Claude and Google Gemini; exact versions not recorded.
-- **Prompt (reconstructed task summary):** Compare AI-generated picking/traffic implementations for integration, safety-related invariants, congestion and deadlock handling, algorithmic complexity and memory overhead. Original prompts and responses are unavailable.
-- **Output produced:** Two implementations of the picking robot state machine, battery/dock handling and traffic control. Both use A*, greedy traffic rules, insertion sort for mover priority and seeded side-stepping; their sub-operations differ in path storage, queries, obstacle-mask handling and side-step selection.
-- **Verification performed (archived E16):** Both compiled with warnings as errors (GCC 14.2), passed dependency layering, passed 6/6 module test executables (including 11/11 picking tests and the 48-run simulation stress test) and caught 3/3 picking mutants. Gemini passed all six extra robustness probes; Claude passed none of those six. The probes concern invalid dock construction, reservation safety, invalid trip stops/IDs, same-cell moves, double counting of a wait and a move, and charging at near-zero battery at the assigned dock.
+## G16: Second-order DSA empirical comparison of Claude vs. Gemini modules/picking (CSV + PNG)
+Date / member / work package: 25 November 2026 / Raelyn / WP-D
+Tool and version: Gemini (Google), Gemini 4 Carbon (High)
+Prompt (summary or link): "can you do a comparison of the algorithms in module/picking for these 2 folders and tell me which one is better, the one done by Claude or the one done by Gemini. Compare the algorithms in Data Structure and Algorithm (DSA) 2nd order so time and space complexity. Give me the results in 1 csv file and 1 .png file." (with both Claude and Gemini project archives attached).
+Output produced: SHA-256 diff confirming only the 8 modules/picking files differed; standalone C++17 benchmark (bench_picking.cpp) with a global operator new/delete heap profiler; 164-row CSV (picking_claude_vs_gemini.csv); and 6-panel chart (picking_claude_vs_gemini.png).
+Verification performed: Compiled both archives in Release (-O3, -Werror), ran 6/6 ctest suites and 3/3 mutation tests on both, executed 6 invariant probes (Gemini 6/6 vs. Claude 0/6), micro-benchmarks B1–B5, 50-seed corridor deadlock tests (Claude 50/50 in 25 ticks vs. Gemini 28/50 in 280 ticks), E5 1–8 robot sweeps (15 seeds), and 3 stress scenarios; visually inspected the PNG chart.
+Problems identified:
+Initial benchmark binary crashed (0xC0000374) due to libstdc++-6.dll mixing its own operator new with the custom operator delete; fixed by linking with -static.
+Two analytical overstatements were later caught in G15: claiming Gemini's path step made stepping "
+𝑂(𝐿2) O(L2) vs. 𝑂(1) O(1)" without noting that both versions already scan 𝑂(𝐿) O(L) per tick for obstacles, and reporting >4,500× speedup for unitsOnTrip() where -O3 likely optimised away Gemini's constant loop.
+Minor label overlap in Panels B and C of the first PNG render.
+Changes made: Added -static to the benchmark build, adjusted PNG label coordinates and re-rendered cleanly, and corrected the two complexity/timing overstatements in G15.
+Scores: Accuracy 3/5 · Completeness 5/5 · Clarity 4/5 · Relevance 5/5
+Evidence for the scores:
+Accuracy: all benchmark builds, tests, and counts ran cleanly once -static was added, but 2 points deducted for the initial DLL heap mismatch and the two overstatements (O(L^2) stepping claim and compiler-optimised unitsOnTrip() speedup).
+Completeness: covered static size, dynamic heap churn, micro-benchmarks, corridor deadlocks, E5 scaling, stress runs, and invariant probes in one CSV and one PNG.
+Clarity: 6-panel figure and summary tables were readable after fixing two minor label overlaps.
+Relevance: directly answered which implementation is better at a 2nd-order DSA level with the requested CSV and PNG outputs.
+
+## G17: Complexity comparison mapped to the 7 identified WP-D algorithms
+Date / member / work package: 25 November 2026 / Raelyn / WP-D
+Tool and version: Gemini (Google), Gemini 4 Neon (Medium)
+Prompt (summary or link): "Using these algorithms identified, do a time and space complexity comparison between claude and gemini"
+Output produced: Side-by-side time and space complexity comparison table organized directly by the 7 algorithms (14 sub-operations) from G16, plus overall per-tick totals (𝑂(𝑉+𝑅2+𝑅⋅𝐿+𝑟⋅𝑉log𝑉) O(V+R2+R⋅L+r⋅VlogV) time, 𝑂(𝑉+𝑅⋅𝐿+𝑅(𝑘+𝑢))
+O(V+R⋅L+R(k+u)) space) and a 1st-order vs. 2nd-order summary verdict.
+Verification performed: Cross-checked all 14 rows against G16, and the source files of both implementations.
+Problems identified: None.
+Changes made: None.
+Scores: Accuracy 5/5 · Completeness 5/5 · Clarity 5/5 · Relevance 5/5
+Evidence for the scores: Every row matched the exact 7-algorithm structure from G16 and the verified complexity bounds from G16 without re-introducing overstatements.
 
 | Scenario / metric | Claude | Gemini |
 |---|---:|---:|
@@ -418,8 +461,9 @@ The experiment numbers below follow the CSV filenames in the current archive, no
 | G13 | Sam (WP-E owner) | Claude | E11/E12: defer charging | 4 P | 4 P | NR | 4 P | 4/5 own mutants caught; modest gains; similar peak memory |
 | G14 | Marissa (WP-A owner) | Claude | E13: data structures | 4 P | 4 P | 4 P | 4 P | Neutral tests pass; stronger documentation/tests, weak duplicate quicksort |
 | G14 | Marissa (WP-A owner) | Codex | E13: data structures | 3 P | 3 P | 3 P | 4 P | Duplicate-aware quicksort; likely `emplace` defect; missing interfaces |
-| G15 | Raelyn (WP-D owner) | Claude | E16/E17: picking | 3 P | 3 P | NR | 4 P | 50/50 corridor resolution; misses six extra defensive probes |
-| G15 | Raelyn (WP-D owner) | Gemini | E16/E17: picking | 3 P | 4 P | NR | 4 P | Six extra probes pass; 28/50 corridor resolution; cheaper queries |
+| G15	| Raelyn | Gemini	| Implement WP-D modules/picking | 4 | 5 | 5 | 5 | Builds with -Werror, passes 6/6 suites & 3/3 mutants; blind random sidestep() stalls on 22/50 narrow-corridor seeds |
+| G16	| Raelyn | Gemini | 2nd-order DSA benchmark (Claude vs. Gemini) |	3 | 5 |	4 |	5	| Claude wins traffic/corridor motion (50/50, -28% waits, 1.6x faster); Gemini wins heap churn & 6/6 invariant probes; two complexity/timing overstatements later corrected in G15
+| G17	| Raelyn | Gemini |	7-algorithm complexity comparison (Claude vs. Gemini) |	5 |	5 | 5 | 5 |	Mapped all 14 sub-operations cleanly to the 7 WP-D algorithms; consistent with G15 bounds 
 
 **Score status:** Plain numbers are member-recorded evaluations carried forward from the supplied log; `P` denotes a proposed retrospective rating supported by archived evidence but requiring the owner to review and approve it. `NR` means not rateable with the material available (not a zero). A dash denotes not applicable. G4 records two responses, and G12 is distinct from G15. E12 and E17 are supporting analyses, not additional AI responses by themselves. There are 11 recorded historical numerical response evaluations (G3–G12, including both G4 responses), and six retrospective comparative responses (G13–G15). Do not include provisional or unavailable scores in an average of member-recorded ratings.
 
