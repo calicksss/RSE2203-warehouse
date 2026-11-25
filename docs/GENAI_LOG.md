@@ -139,6 +139,22 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
   - Clarity: the code is commented and follows the style of E4; the chart titles and table columns are readable.
   - Relevance: it directly answers Calix's request to justify the current algorithm or improve it. It supports keeping `exactLimit = 8` and suggests greedy + 2-opt as a fallback above it.
 
+## G8: E14 Held-Karp vs backtracking experiment, WP-C
+
+- **Date / member / work package:** 25 November 2026 / liyou / WP-C (experiments)
+- **Tool and version:** Claude (Anthropic), Claude Code, Sonnet 5.5
+- **Prompt (summary):** "Suggest and write an experiment for navigation: compare an exact method that scales better than backtracking with pruning, on the same trips as E4, standalone outside the navigation module."
+- **Output produced:** `experimentHeldKarp()` (E14) with a Held-Karp dynamic program over (subset of shelves, last shelf, side), the `heldkarp` dispatch key, and `plot_heldkarp()` in `plot_results.py`.
+- **Verification performed:** I ran E14 in a Codespace: the route lengths, node counts and state counts are identical to the tool's own run (only microseconds differ). Both methods gave the same length on all 1,040 trips with both methods (k = 1 to 12), 0 mismatches, and the exact lengths for k <= 10 equal the exact column of E4. One untimed run fills the DistanceTable cache first so both methods are timed on lookups only.
+- **Problems identified:** The tool first suggested raising `exactLimit` above 8. I checked `tripCapacityUnits` (`core/Config.hpp:35`, enforced in `JobManager.cpp:207`) and it is 8, so trips never exceed 8 shelves and are already planned exactly; the suggestion would change no route. Timings at k = 1 to 4 are a few microseconds and noisy. For k = 11 to 14 only 20 trips were used, each k with a different sample.
+- **Changes made:** added E14 to `experiments.cpp`, its plot to `plot_results.py`, and `e14_heldkarp.csv` / `e14_heldkarp.png` to `experiments/results/`. No navigation source files were changed. Conclusion: Held-Karp is 17x faster at k = 8 and 68x at k = 10 with identical routes, but the module needs no change; it is a future improvement if the trip capacity is raised.
+- **Scores:** Accuracy <4>/5 · Completeness <4>/5 · Clarity <4>/5 · Relevance <4>/5
+- **Evidence for the scores:**
+  - Accuracy: ran first time, my Codespace run reproduced every length and count, 0 mismatches over 1,040 trips; one point off because the first recommendation (raise `exactLimit`) was wrong for this project and had to be corrected after I checked the code.
+  - Completeness: compares two exact methods for k = 1 to 14 with CSV and chart; one point off because k >= 11 uses only 20 trips and Held-Karp was not added to the module or its tests.
+  - Clarity: commented, follows the style of E4 and E10; chart and table are readable.
+  - Relevance: it tests whether a better exact algorithm would improve the program; the answer (no change needed at capacity 8) is itself useful for justifying the current design.
+
 ## Summary table (for the report)
 
 | Entry | Member | Tool | Task | Acc. | Comp. | Clar. | Rel. | Principal finding |
@@ -150,4 +166,4 @@ _(Entries G3, G4, … are added for each member. At least one entry per member i
 | G5 | liyou | Claude | Extra tests and mutants (WP-C) | 4 | 4 | 4 | 5 | 3 test gaps closed: 21/21 tests, 0 mutation surprises |
 | G6 | Kavin | Claude | E9 search-box experiment (WP-B) | 3 | 4 | 4 | 5 | First version had a suffix-comparison bug caught by the results check; current search is good enough for 91 products |
 | G7 | liyou | Claude | E10: greedy + 2-opt vs exact routes | 4 | 4 | 4 | 5 | 2-opt cuts greedy's gap from 25.9% to 10.3% at k=10 in microseconds, but is exact in only 26/100 trips |
-
+| G8 | liyou | Claude | E14: Held-Karp vs backtracking exact routes | 4 | 4 | 4 | 4 | Same optimal routes; Held-Karp 17x faster at k = 8, 68x at k = 10, but trips never exceed 8 shelves, so no change needed |
