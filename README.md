@@ -29,13 +29,11 @@ Requirements: CMake 3.16 or later and a C++17 compiler (Visual Studio 2019 or la
 # Linux / macOS
 cmake -S . -B build
 cmake --build build -j
-ctest --test-dir build               # all module tests
 ./build/app/Warehouse                # interactive program
 
 # Windows with Visual Studio (Developer Command Prompt)
 cmake -S . -B build
 cmake --build build --config Release
-ctest --test-dir build -C Release
 build\app\Release\Warehouse.exe
 
 # Windows with MinGW (remove any existing build folder first)
